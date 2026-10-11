@@ -1,8 +1,9 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { commercialTerms, money, quoteItems, shortDate, type Quote } from './data';
+import { builderTotal, commercialTerms, money, quoteItems, shortDate, type Quote } from './data';
 
 export function exportQuotePdf(q: Quote) {
+  const t = q.terms ?? commercialTerms;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210;
   doc.setFillColor(15, 76, 70); doc.rect(0, 0, W, 34, 'F');
@@ -18,14 +19,14 @@ export function exportQuotePdf(q: Quote) {
   autoTable(doc, {
     startY: 80, head: [['Descrição', 'Qtd.', 'Valor unitário', 'Total']],
     body: quoteItems(q).map(i => [i.description, String(i.qty), money(i.unit), money(i.unit * i.qty)]),
-    foot: [['', '', 'Valor total', money(q.value)]],
+    foot: q.discount ? [['', '', `Desconto (${q.discount}%)`, money(builderTotal(quoteItems(q), 0) - q.value)], ['', '', 'Valor total', money(q.value)]] : [['', '', 'Valor total', money(q.value)]],
     headStyles: { fillColor: [15, 76, 70] }, footStyles: { fillColor: [235, 243, 241], textColor: 20, fontStyle: 'bold' },
     columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } }, styles: { fontSize: 9.5, cellPadding: 3 },
   });
   let y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text('Condições comerciais', 15, y); y += 7;
   doc.setFontSize(9.5);
-  ([['Validade da proposta', commercialTerms.validity], ['Pagamento', commercialTerms.payment], ['Prazo de entrega', commercialTerms.delivery], ['Garantia', commercialTerms.warranty]] as const).forEach(([k, v]) => {
+  ([['Validade da proposta', t.validity], ['Pagamento', t.payment], ['Prazo de entrega', t.delivery], ['Garantia', t.warranty]] as const).forEach(([k, v]) => {
     doc.setFont('helvetica', 'bold'); doc.text(`${k}:`, 15, y); doc.setFont('helvetica', 'normal'); doc.text(v, 60, y); y += 6;
   });
   y += 16; doc.setDrawColor(150); doc.line(15, y, 90, y); doc.line(120, y, 195, y);
