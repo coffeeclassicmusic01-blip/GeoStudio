@@ -1,102 +1,189 @@
-import { Fragment, useMemo, useRef, useState, type DragEvent } from 'react';
-import { GripVertical, Plus, Save, Trash2, Download, Building2, ListChecks, Tag } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Bold, ChevronLeft, ChevronRight, Copy, DollarSign, Eye, EyeOff, FileSignature, Hash, Image as ImageIcon, Italic, List, ListOrdered, Minus, Pilcrow, Plus, Redo2, Save, ScrollText, Search, Strikethrough, Table2, Trash2, Type, Underline, Undo2, User, Wrench, Building2, Download, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { builderTotal, commercialTerms, defaultCatalog, money, termLabels, termOptions, type Quote, type QuoteItem, type Terms } from './data';
 import { exportQuotePdf } from './pdf';
 
-type Drag = { kind: 'item'; item: QuoteItem } | { kind: 'field'; tag: string } | { kind: 'term'; key: keyof Terms; value: string };
-const fieldTags = ['Cliente', 'Contato', 'E-mail', 'Telefone', 'Projeto', 'Responsável', 'Valor total', 'Validade', 'Pagamento'];
+type BlockType = 'logo' | 'title' | 'number' | 'client' | 'products' | 'services' | 'financial' | 'terms' | 'text' | 'image' | 'signature';
+type Block = { id: string; type: BlockType; label: string; visible: boolean; align: 'left' | 'center' | 'right'; accent: string; spacing: 'compact' | 'normal' | 'wide'; html?: string; img?: string };
+type Drag = { kind: 'block'; type: BlockType } | { kind: 'move'; id: string } | { kind: 'item'; item: QuoteItem; service?: boolean };
 
-export function QuoteBuilder({ quotes, nextId, onCreate, notify }: { quotes: Quote[]; nextId: string; onCreate: (q: Quote) => void; notify: (t: string) => void }) {
+const palette: { group: string; items: { type: BlockType; label: string; hint: string; icon: typeof Type }[] }[] = [
+  { group: 'Identificação', items: [{ type: 'logo', label: 'Logotipo', hint: 'Marca e dados da empresa', icon: Building2 }, { type: 'title', label: 'Título do orçamento', hint: 'Título e descrição', icon: Type }, { type: 'number', label: 'Número e validade', hint: 'Referência e vencimento', icon: Hash }] },
+  { group: 'Dados vinculados', items: [{ type: 'client', label: 'Dados do cliente', hint: 'Identificação e contato', icon: User }, { type: 'products', label: 'Tabela de produtos', hint: 'Itens, quantidades e valores', icon: Table2 }, { type: 'services', label: 'Tabela de serviços', hint: 'Escopo e execução', icon: Wrench }] },
+  { group: 'Comercial', items: [{ type: 'financial', label: 'Resumo financeiro', hint: 'Subtotal, descontos e total', icon: DollarSign }, { type: 'terms', label: 'Condições comerciais', hint: 'Prazo, validade e pagamento', icon: ScrollText }, { type: 'text', label: 'Texto livre', hint: 'Conteúdo independente', icon: Pilcrow }, { type: 'image', label: 'Imagem', hint: 'Foto, esquema ou logotipo', icon: ImageIcon }, { type: 'signature', label: 'Assinatura e aceite', hint: 'Responsáveis e aprovação', icon: FileSignature }] },
+];
+const labelOf = (t: BlockType) => palette.flatMap(g => g.items).find(i => i.type === t)!.label;
+let seq = 0; const uid = () => `b${++seq}`;
+const mk = (type: BlockType, extra: Partial<Block> = {}): Block => ({ id: uid(), type, label: labelOf(type), visible: true, align: 'left', accent: '#0f4c46', spacing: 'normal', ...extra });
+const gap = { compact: 'mb-3', normal: 'mb-6', wide: 'mb-10' };
+
+function Editable({ html, onChange, className, placeholder }: { html: string; onChange: (h: string) => void; className?: string; placeholder?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (ref.current && document.activeElement !== ref.current && ref.current.innerHTML !== html) ref.current.innerHTML = html; }, [html]);
+  return <div ref={ref} contentEditable suppressContentEditableWarning data-placeholder={placeholder} onBlur={e => onChange(e.currentTarget.innerHTML)} className={`outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] ${className ?? ''}`} />;
+}
+
+export function QuoteBuilder({ quotes, nextId, onCreate, onClose, notify }: { quotes: Quote[]; nextId: string; onCreate: (q: Quote) => void; onClose: () => void; notify: (t: string) => void }) {
   const clients = useMemo(() => Array.from(new Map(quotes.map(q => [q.client, q])).values()), [quotes]);
-  const [catalog, setCatalog] = useState(defaultCatalog);
   const [client, setClient] = useState(clients[0]?.client ?? '');
-  const base = clients.find(c => c.client === client);
-  const [contact, setContact] = useState(base?.contact ?? ''); const [email, setEmail] = useState(base?.email ?? ''); const [phone, setPhone] = useState(base?.phone ?? '');
-  const [project, setProject] = useState('Nova proposta'); const [owner, setOwner] = useState('Marina');
-  const [items, setItems] = useState<QuoteItem[]>([]); const [terms, setTerms] = useState<Terms>(commercialTerms); const [discount, setDiscount] = useState(0);
-  const [intro, setIntro] = useState('Prezado(a) {{Contato}}, apresentamos a proposta para {{Projeto}} da {{Cliente}}, no valor de {{Valor total}}.');
-  const [over, setOver] = useState(''); const introRef = useRef<HTMLTextAreaElement>(null);
-  const [newItem, setNewItem] = useState({ description: '', unit: '' });
-  const total = builderTotal(items, discount);
-  const values: Record<string, string> = { Cliente: client, Contato: contact, 'E-mail': email, Telefone: phone, Projeto: project, 'Responsável': owner, 'Valor total': money(total), Validade: terms.validity, Pagamento: terms.payment };
-  const filled = intro.replace(/\{\{(.+?)\}\}/g, (m, k: string) => values[k] ?? m);
+  const c = clients.find(x => x.client === client);
+  const [owner, setOwner] = useState(c?.owner ?? 'Marina');
+  const [items, setItems] = useState<QuoteItem[]>([defaultCatalog[2]!]); const [services, setServices] = useState<QuoteItem[]>([defaultCatalog[0]!]);
+  const [terms, setTerms] = useState<Terms>(commercialTerms); const [discount, setDiscount] = useState(0);
+  const [blocks, setBlocks] = useState<Block[]>(() => [mk('logo'), mk('title', { html: `<h2>Proposta comercial — ${c?.client ?? ''}</h2><p>Solução personalizada para ${c?.project ?? 'o seu projeto'}.</p>` }), mk('client'), mk('products'), mk('services'), mk('financial'), mk('terms'), mk('signature')]);
+  const [selected, setSelected] = useState<string | null>(null); const [dropAt, setDropAt] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(100); const [tab, setTab] = useState<'Blocos' | 'Clientes' | 'Produtos'>('Blocos'); const [q, setQ] = useState('');
+  const [rightTab, setRightTab] = useState<'Bloco' | 'Comentários'>('Bloco'); const [comments, setComments] = useState<string[]>(['Marina: revisar prazo de entrega antes de enviar.']); const [comment, setComment] = useState('');
+  const [leftOpen, setLeftOpen] = useState(true); const [rightOpen, setRightOpen] = useState(true); const [preview, setPreview] = useState(false);
+  const all = [...items, ...services]; const subtotal = builderTotal(all, 0); const total = builderTotal(all, discount);
+  const sel = blocks.find(b => b.id === selected);
+  const project = c?.project ?? 'Nova proposta';
+  const update = (id: string, p: Partial<Block>) => setBlocks(bs => bs.map(b => b.id === id ? { ...b, ...p } : b));
 
-  function pickClient(name: string) { setClient(name); const c = clients.find(x => x.client === name); if (c) { setContact(c.contact); setEmail(c.email); setPhone(c.phone); setProject(c.project); setOwner(c.owner); } }
-  const start = (d: Drag) => (e: DragEvent) => { e.dataTransfer.setData('application/json', JSON.stringify(d)); e.dataTransfer.effectAllowed = 'copy'; };
+  function insert(type: BlockType, at = blocks.length) { const b = mk(type, type === 'text' ? { html: '<p>Escreva aqui…</p>' } : {}); setBlocks(bs => [...bs.slice(0, at), b, ...bs.slice(at)]); setSelected(b.id); }
+  function move(id: string, to: number) { setBlocks(bs => { const from = bs.findIndex(b => b.id === id); const b = bs[from]!; const rest = bs.filter(x => x.id !== id); const idx = to > from ? to - 1 : to; return [...rest.slice(0, idx), b, ...rest.slice(idx)]; }); }
+  function addItem(it: QuoteItem, service: boolean) { (service ? setServices : setItems)(list => { const i = list.findIndex(x => x.description === it.description); return i >= 0 ? list.map((x, j) => j === i ? { ...x, qty: x.qty + 1 } : x) : [...list, { ...it }]; }); }
+  const start = (d: Drag) => (e: DragEvent) => { e.dataTransfer.setData('application/json', JSON.stringify(d)); e.stopPropagation(); };
   const read = (e: DragEvent): Drag | null => { try { return JSON.parse(e.dataTransfer.getData('application/json')); } catch { return null; } };
-  const zone = (name: string, onDrop: (d: Drag) => void) => ({
-    onDragOver: (e: DragEvent) => { e.preventDefault(); setOver(name); }, onDragLeave: () => setOver(''),
-    onDrop: (e: DragEvent) => { e.preventDefault(); setOver(''); const d = read(e); if (d) onDrop(d); },
-    className: `rounded-md border-2 border-dashed p-3 transition-colors ${over === name ? 'border-primary bg-accent' : 'border-transparent'}`,
-  });
-  function addItem(it: QuoteItem) { setItems(all => { const i = all.findIndex(x => x.description === it.description && x.unit === it.unit); return i >= 0 ? all.map((x, j) => j === i ? { ...x, qty: x.qty + 1 } : x) : [...all, { ...it }]; }); }
-  function insertTag(tag: string) { const el = introRef.current; const pos = el?.selectionStart ?? intro.length; setIntro(intro.slice(0, pos) + `{{${tag}}}` + intro.slice(pos)); }
-  function build(): Quote | null {
-    if (!client.trim() || !items.length) { notify('Informe o cliente e arraste ao menos um item para o documento.'); return null; }
-    return { id: nextId, client, initials: client.split(' ').slice(0, 2).map(s => s[0]).join('').toUpperCase(), project, value: total, status: 'Em elaboração', owner, date: '2026-10-10', followup: '2026-10-13', contact, email, phone, notes: ['10 out · Orçamento montado no editor.'], color: 'teal', items, terms, discount };
+  function onDocDrop(e: DragEvent) {
+    e.preventDefault(); const d = read(e); const at = dropAt ?? blocks.length; setDropAt(null); if (!d) return;
+    if (d.kind === 'block') insert(d.type, at); else if (d.kind === 'move') move(d.id, at);
+    else { const target = d.service ? 'services' : 'products'; if (!blocks.some(b => b.type === target)) insert(target, at); addItem(d.item, !!d.service); }
   }
-  const chip = 'flex cursor-grab items-center gap-2 rounded-md border bg-card px-2.5 py-2 text-sm hover:border-primary active:cursor-grabbing';
+  const fmt = (cmd: string, val?: string) => document.execCommand(cmd, false, val);
+  function build(): Quote | null {
+    if (!client || !all.length) { notify('Escolha um cliente e adicione ao menos um item.'); return null; }
+    return { id: nextId, client, initials: client.split(' ').slice(0, 2).map(s => s[0]).join('').toUpperCase(), project, value: total, status: 'Em elaboração', owner, date: '2026-10-10', followup: '2026-10-13', contact: c?.contact ?? '', email: c?.email ?? '', phone: c?.phone ?? '', notes: ['10 out · Orçamento criado no editor.'], color: 'teal', items: all, terms, discount };
+  }
+  const save = () => { const qq = build(); if (qq) onCreate(qq); };
+  const pdf = () => { const qq = build(); if (qq) exportQuotePdf(qq); };
 
-  return <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-    <aside className="space-y-5 rounded-lg border bg-card p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-      <p className="text-xs text-muted-foreground">Arraste os blocos para dentro do documento.</p>
-      <section><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Tag size={15} />Campos automáticos</h3>
-        <div className="flex flex-wrap gap-1.5">{fieldTags.map(t => <span key={t} draggable onDragStart={start({ kind: 'field', tag: t })} onDoubleClick={() => insertTag(t)} className="cursor-grab rounded-full border bg-secondary px-2.5 py-1 text-xs">{t}</span>)}</div></section>
-      <section><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><ListChecks size={15} />Serviços</h3>
-        <div className="space-y-1.5">{catalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it })} onDoubleClick={() => addItem(it)} className={chip}><GripVertical size={14} className="text-muted-foreground" /><span className="flex-1">{it.description}</span><strong className="text-xs">{money(it.unit)}</strong></div>)}</div>
-        <form className="mt-2 flex gap-1.5" onSubmit={e => { e.preventDefault(); const unit = Number(newItem.unit); if (!newItem.description.trim() || !(unit > 0)) return; setCatalog([...catalog, { description: newItem.description.trim(), qty: 1, unit }]); setNewItem({ description: '', unit: '' }); }}>
-          <input className="min-w-0 flex-1 rounded-md border bg-background px-2 text-xs" placeholder="Novo serviço" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
-          <input className="w-20 rounded-md border bg-background px-2 text-xs" type="number" min="1" placeholder="R$" value={newItem.unit} onChange={e => setNewItem({ ...newItem, unit: e.target.value })} />
-          <Button size="icon" variant="outline" type="submit" title="Adicionar ao catálogo"><Plus /></Button>
-        </form></section>
-      <section><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Building2 size={15} />Condições comerciais</h3>
-        {(Object.keys(termOptions) as (keyof Terms)[]).map(k => <div key={k} className="mb-2"><small className="text-muted-foreground">{termLabels[k]}</small>
-          <div className="mt-1 space-y-1">{termOptions[k].map(v => <div key={v} draggable onDragStart={start({ kind: 'term', key: k, value: v })} onDoubleClick={() => setTerms({ ...terms, [k]: v })} className={`${chip} py-1.5 text-xs`}><GripVertical size={12} className="text-muted-foreground" />{v}</div>)}</div></div>)}
-      </section>
-    </aside>
+  function table(list: QuoteItem[], set: (l: QuoteItem[]) => void, title: string, service: boolean, accent: string) {
+    return <div onDragOver={e => e.preventDefault()} onDrop={e => { const d = read(e); if (d?.kind === 'item') { e.preventDefault(); e.stopPropagation(); setDropAt(null); addItem(d.item, service); } }}>
+      <div className="mb-2 flex justify-between"><h4 className="text-xs font-bold tracking-widest" style={{ color: accent }}>{title.toUpperCase()}</h4><small className="text-muted-foreground">{list.length} ITENS</small></div>
+      <table className="w-full text-sm"><thead><tr className="bg-secondary text-left text-[11px] text-muted-foreground"><th className="p-2">DESCRIÇÃO</th><th className="w-16">QTD.</th><th className="w-28">UNITÁRIO</th><th className="w-28 pr-2 text-right">TOTAL</th>{!preview && <th className="w-8" />}</tr></thead>
+        <tbody>{list.map((it, i) => <tr key={i} className="border-b">
+          <td className="p-2"><input aria-label="Descrição" readOnly={preview} className="w-full bg-transparent font-medium" value={it.description} onChange={e => set(list.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} /></td>
+          <td><input aria-label="Quantidade" readOnly={preview} type="number" min={1} className="w-14 bg-transparent" value={it.qty} onChange={e => set(list.map((x, j) => j === i ? { ...x, qty: Math.max(1, Number(e.target.value)) } : x))} /></td>
+          <td><input aria-label="Valor unitário" readOnly={preview} type="number" min={0} className="w-24 bg-transparent" value={it.unit} onChange={e => set(list.map((x, j) => j === i ? { ...x, unit: Math.max(0, Number(e.target.value)) } : x))} /></td>
+          <td className="pr-2 text-right">{money(it.qty * it.unit)}</td>
+          {!preview && <td><Button size="icon" variant="ghost" className="h-7 w-7" title="Remover" onClick={() => set(list.filter((_, j) => j !== i))}><Trash2 size={13} /></Button></td>}</tr>)}</tbody></table>
+      {!preview && <p className="mt-1 text-[11px] text-muted-foreground">Arraste itens da aba Produtos para cá.</p>}
+    </div>;
+  }
 
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Dica: dê dois cliques em um bloco para adicioná-lo direto.</p>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => { const q = build(); if (q) exportQuotePdf(q); }}><Download />Pré-visualizar PDF</Button><Button onClick={() => { const q = build(); if (q) onCreate(q); }}><Save />Salvar orçamento</Button></div></div>
-      <article className="mx-auto max-w-[820px] rounded-sm border bg-card p-6 shadow-lg sm:p-10">
-        <header className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b pb-4"><div><div className="text-2xl font-bold">órbita<span className="text-primary">.</span></div><small className="text-muted-foreground">Studio Criativo</small></div><div className="text-right"><strong className="block">PROPOSTA COMERCIAL</strong><small className="text-muted-foreground">{nextId} · 10 out, 2026</small></div></header>
+  function render(b: Block): ReactNode {
+    const A = b.accent; const head = (t: string, r?: string) => <div className="mb-2 flex justify-between"><h4 className="text-xs font-bold tracking-widest" style={{ color: A }}>{t}</h4>{r && <small className="text-[11px] text-muted-foreground">{r}</small>}</div>;
+    switch (b.type) {
+      case 'logo': return <div className="flex items-start justify-between gap-4 border-b pb-5"><div className="flex gap-3"><span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>Ó</span><div><strong>Órbita Studio Criativo</strong><p className="text-xs text-muted-foreground">Design · Tecnologia · Estratégia<br />comercial@orbita.example · (11) 4000-1234</p></div></div><div className="text-right"><small className="text-[11px] tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div></div>;
+      case 'title': return <div><small className="text-[11px] font-bold tracking-widest" style={{ color: A }}>PROPOSTA COMERCIAL</small><Editable html={b.html ?? ''} onChange={h => update(b.id, { html: h })} className="[&_h2]:text-2xl [&_h2]:font-bold [&_p]:text-sm [&_p]:text-muted-foreground" placeholder="Título da proposta" /></div>;
+      case 'number': return <div className="grid grid-cols-3 gap-3 text-sm">{[['Número', nextId], ['Emissão', '10 out 2026'], ['Validade', terms.validity]].map(([k, v]) => <div key={k}><small className="text-muted-foreground">{k}</small><p className="font-medium">{v}</p></div>)}</div>;
+      case 'client': return <div>{head('DADOS DO CLIENTE', 'VINCULADO AO CADASTRO')}<div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">{[['Razão social', client], ['Projeto', project], ['Contato', c?.contact], ['E-mail', c?.email], ['Telefone', c?.phone], ['Responsável', owner]].map(([k, v]) => <div key={k}><small className="text-xs text-muted-foreground">{k}</small><p className="font-medium">{v || '—'}</p></div>)}</div></div>;
+      case 'products': return table(items, setItems, 'Produtos', false, A);
+      case 'services': return table(services, setServices, 'Serviços', true, A);
+      case 'financial': return <div>{head('RESUMO FINANCEIRO')}<div className="ml-auto max-w-xs space-y-1 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></div><div className="flex items-center justify-between"><span>Desconto (%)</span>{preview ? <span>{discount}%</span> : <input aria-label="Desconto" type="number" min={0} max={100} className="w-16 rounded border bg-background px-1 text-right" value={discount} onChange={e => setDiscount(Number(e.target.value))} />}</div><div className="flex justify-between border-t pt-2 text-base font-bold" style={{ color: A }}><span>Total</span><span>{money(total)}</span></div></div></div>;
+      case 'terms': return <div>{head('CONDIÇÕES COMERCIAIS')}<dl className="grid grid-cols-[150px_1fr] gap-y-1.5 text-sm">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => <><dt key={k + 'l'} className="text-muted-foreground">{termLabels[k]}</dt><dd key={k + 'v'}>{preview ? terms[k] : <select aria-label={termLabels[k]} className="w-full bg-transparent" value={terms[k]} onChange={e => setTerms({ ...terms, [k]: e.target.value })}>{Array.from(new Set([terms[k], ...termOptions[k]])).map(o => <option key={o}>{o}</option>)}</select>}</dd></>)}</dl></div>;
+      case 'text': return <Editable html={b.html ?? ''} onChange={h => update(b.id, { html: h })} className="text-sm [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" placeholder="Escreva aqui…" />;
+      case 'image': return b.img ? <img src={b.img} alt="Imagem do orçamento" className="max-h-72 rounded-md" style={{ display: 'inline-block' }} /> : <label className="grid h-32 cursor-pointer place-items-center rounded-md border border-dashed text-sm text-muted-foreground"><span><ImageIcon className="mx-auto mb-1" />Clique para escolher uma imagem</span><input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) update(b.id, { img: URL.createObjectURL(f) }); }} /></label>;
+      case 'signature': return <div>{head('ASSINATURA E ACEITE')}<div className="mt-10 grid grid-cols-2 gap-10 text-center text-xs text-muted-foreground"><div className="border-t pt-2">{c?.contact} · {client}</div><div className="border-t pt-2">{owner} · Órbita Studio</div></div></div>;
+    }
+  }
 
-        <div {...zone('client', d => { if (d.kind === 'field') insertTag(d.tag); })}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="field-label">Cliente<select value={client} onChange={e => pickClient(e.target.value)}>{clients.map(c => <option key={c.client}>{c.client}</option>)}</select></label>
-            <label className="field-label">Projeto<input value={project} onChange={e => setProject(e.target.value)} /></label>
-            <label className="field-label">Contato<input value={contact} onChange={e => setContact(e.target.value)} /></label>
-            <label className="field-label">Responsável<select value={owner} onChange={e => setOwner(e.target.value)}><option>Marina</option><option>Lucas</option><option>Pedro</option></select></label>
-            <label className="field-label">E-mail<input value={email} onChange={e => setEmail(e.target.value)} /></label>
-            <label className="field-label">Telefone<input value={phone} onChange={e => setPhone(e.target.value)} /></label>
+  const filteredPalette = palette.map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q.toLowerCase())) })).filter(g => g.items.length);
+  const visibleBlocks = blocks.filter(b => !preview || b.visible);
+  const menu = (label: string, entries: [string, () => void][]) => <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 font-normal">{label}</Button></DropdownMenuTrigger><DropdownMenuContent align="start">{entries.map(([l, f], i) => l === '-' ? <DropdownMenuSeparator key={i} /> : <DropdownMenuItem key={l} onSelect={f}>{l}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>;
+  const tb = (title: string, icon: ReactNode, cmd: () => void) => <Button variant="ghost" size="icon" className="h-8 w-8" title={title} onMouseDown={e => { e.preventDefault(); cmd(); }}>{icon}</Button>;
+
+  return <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground">
+    <header className="flex flex-wrap items-center gap-3 border-b px-3 py-2">
+      <span className="grid h-8 w-8 place-items-center rounded-md bg-primary font-bold text-primary-foreground">Ó</span>
+      <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate">Orçamento — {project}</strong><span className="rounded bg-accent px-2 py-0.5 text-[11px] text-accent-foreground">Rascunho</span></div><small className="text-muted-foreground">{nextId} · Versão 01</small></div>
+      <div className="ml-auto flex flex-wrap items-center gap-2"><span className="hidden text-xs text-muted-foreground md:inline">● Salvo na sessão</span>
+        <Button variant="outline" size="sm" onClick={onClose}><ArrowLeft />Sistema</Button>
+        <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? <EyeOff /> : <Eye />}{preview ? 'Editar' : 'Visualizar'}</Button>
+        <Button variant="outline" size="sm" onClick={save}><Save />Salvar</Button>
+        <Button size="sm" onClick={pdf}><Download />Exportar PDF</Button></div>
+    </header>
+    <nav className="flex flex-wrap gap-0.5 border-b px-2 text-sm">
+      {menu('Arquivo', [['Salvar orçamento', save], ['Exportar PDF', pdf], ['-', () => {}], ['Fechar editor', onClose]])}
+      {menu('Editar', [['Desfazer', () => fmt('undo')], ['Refazer', () => fmt('redo')], ['-', () => {}], ['Excluir bloco selecionado', () => { if (selected) { setBlocks(bs => bs.filter(b => b.id !== selected)); setSelected(null); } }]])}
+      {menu('Inserir', palette.flatMap(g => g.items).map(i => [i.label, () => insert(i.type)] as [string, () => void]))}
+      {menu('Formatar', [['Negrito', () => fmt('bold')], ['Itálico', () => fmt('italic')], ['Sublinhado', () => fmt('underline')], ['Lista com marcadores', () => fmt('insertUnorderedList')]])}
+      {menu('Exibir', [[leftOpen ? 'Ocultar blocos' : 'Mostrar blocos', () => setLeftOpen(!leftOpen)], [rightOpen ? 'Ocultar propriedades' : 'Mostrar propriedades', () => setRightOpen(!rightOpen)], ['Zoom 100%', () => setZoom(100)]])}
+    </nav>
+    <div className="flex min-h-0 flex-1">
+      {leftOpen && <aside className="flex w-72 shrink-0 flex-col border-r max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-10 max-md:bg-background">
+        <div className="flex items-center justify-between p-3"><strong className="text-sm">Espaço de trabalho</strong><Button variant="ghost" size="icon" className="h-7 w-7" title="Recolher" onClick={() => setLeftOpen(false)}><ChevronLeft size={15} /></Button></div>
+        <div className="flex gap-1 px-3">{(['Blocos', 'Clientes', 'Produtos'] as const).map(t => <Button key={t} size="sm" variant={tab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setTab(t)}>{t}</Button>)}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {tab === 'Blocos' && <><label className="mb-3 flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm"><Search size={14} /><input className="w-full bg-transparent outline-none" placeholder="Buscar blocos…" value={q} onChange={e => setQ(e.target.value)} /></label>
+            {filteredPalette.map(g => <div key={g.group} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{g.group.toUpperCase()}</small>
+              {g.items.map(i => <div key={i.type} draggable onDragStart={start({ kind: 'block', type: i.type })} className="mt-1 flex cursor-grab items-center gap-3 rounded-md p-2 hover:bg-secondary active:cursor-grabbing">
+                <span className="grid h-8 w-8 place-items-center rounded-md bg-accent text-accent-foreground"><i.icon size={15} /></span>
+                <div className="min-w-0 flex-1"><p className="text-sm font-medium">{i.label}</p><p className="truncate text-[11px] text-muted-foreground">{i.hint}</p></div>
+                <Button variant="ghost" size="icon" className="h-7 w-7" title={`Inserir ${i.label}`} onClick={() => insert(i.type)}><Plus size={14} /></Button></div>)}</div>)}</>}
+          {tab === 'Clientes' && clients.map(x => <button key={x.client} onClick={() => { setClient(x.client); setOwner(x.owner); notify(`Dados de ${x.client} vinculados ao documento.`); }} className={`mb-1 w-full rounded-md border p-2 text-left text-sm ${x.client === client ? 'border-primary bg-accent' : ''}`}><strong>{x.client}</strong><p className="text-xs text-muted-foreground">{x.contact} · {x.email}</p></button>)}
+          {tab === 'Produtos' && <>{[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
+            {defaultCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it, service: !!s })} onDoubleClick={() => addItem(it, !!s)} className="mt-1 flex cursor-grab items-center justify-between gap-2 rounded-md border p-2 text-xs hover:border-primary"><span>{it.description}</span><strong>{money(it.unit)}</strong></div>)}</div>)}</>}
+        </div>
+      </aside>}
+      <section className="flex min-w-0 flex-1 flex-col">
+        {!preview && <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
+          {!leftOpen && <Button variant="ghost" size="icon" className="h-8 w-8" title="Mostrar blocos" onClick={() => setLeftOpen(true)}><ChevronRight size={15} /></Button>}
+          {tb('Desfazer', <Undo2 size={15} />, () => fmt('undo'))}{tb('Refazer', <Redo2 size={15} />, () => fmt('redo'))}
+          <select aria-label="Estilo" className="h-8 rounded border bg-background px-1 text-xs" onChange={e => fmt('formatBlock', e.target.value)} defaultValue="p"><option value="p">Texto normal</option><option value="h2">Título</option><option value="h3">Subtítulo</option></select>
+          <select aria-label="Fonte" className="h-8 rounded border bg-background px-1 text-xs" onChange={e => fmt('fontName', e.target.value)}><option>DM Sans</option><option>Georgia</option><option>Arial</option><option>Courier New</option></select>
+          <select aria-label="Tamanho" className="h-8 rounded border bg-background px-1 text-xs" defaultValue="3" onChange={e => fmt('fontSize', e.target.value)}>{[['2', '10 pt'], ['3', '12 pt'], ['4', '14 pt'], ['5', '18 pt'], ['6', '24 pt']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          {tb('Negrito', <Bold size={15} />, () => fmt('bold'))}{tb('Itálico', <Italic size={15} />, () => fmt('italic'))}{tb('Sublinhado', <Underline size={15} />, () => fmt('underline'))}{tb('Tachado', <Strikethrough size={15} />, () => fmt('strikeThrough'))}
+          {tb('Marcadores', <List size={15} />, () => fmt('insertUnorderedList'))}{tb('Numeração', <ListOrdered size={15} />, () => fmt('insertOrderedList'))}
+          <Button variant="ghost" size="sm" className="h-8" onClick={() => insert('text', selected ? blocks.findIndex(b => b.id === selected) + 1 : blocks.length)}><Plus size={14} />Bloco</Button>
+          <div className="ml-auto flex items-center gap-1 text-xs">{tb('Diminuir zoom', <Minus size={14} />, () => setZoom(z => Math.max(50, z - 10)))}<span className="w-10 text-center">{zoom}%</span>{tb('Aumentar zoom', <Plus size={14} />, () => setZoom(z => Math.min(150, z + 10)))}</div>
+        </div>}
+        <div className="min-h-0 flex-1 overflow-auto bg-muted p-4 sm:p-8" onClick={() => setSelected(null)}>
+          <div className="mx-auto mb-2 flex max-w-[794px] justify-between text-[11px] text-muted-foreground"><span>DOCUMENTO · A4</span><span>{zoom}%</span></div>
+          <div className="mx-auto origin-top" style={{ width: 794, maxWidth: '100%', zoom: zoom / 100 }}>
+            <article className="min-h-[1123px] bg-card px-8 py-10 shadow-lg sm:px-16" onDragOver={e => { e.preventDefault(); }} onDragLeave={() => setDropAt(null)} onDrop={onDocDrop}>
+              {visibleBlocks.map((b, i) => <div key={b.id}>
+                {dropAt === i && <div className="mb-2 h-1 rounded bg-primary" />}
+                <div draggable={!preview} onDragStart={start({ kind: 'move', id: b.id })}
+                  onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDropAt(e.clientY < r.top + r.height / 2 ? i : i + 1); }}
+                  onClick={e => { e.stopPropagation(); if (!preview) setSelected(b.id); }}
+                  className={`group relative rounded-md ${gap[b.spacing]} ${preview ? '' : 'p-3 ring-1'} ${selected === b.id ? 'ring-2 ring-primary' : preview ? '' : 'ring-transparent hover:ring-border'} ${!b.visible ? 'opacity-40' : ''}`}
+                  style={{ textAlign: b.align }}>
+                  {selected === b.id && <div className="absolute -top-4 right-2 z-10 flex rounded-md border bg-card shadow-sm">
+                    {tb('Mover para cima', <ArrowUp size={13} />, () => i > 0 && move(b.id, i - 1))}{tb('Mover para baixo', <ArrowDown size={13} />, () => move(b.id, i + 2))}
+                    {tb('Duplicar', <Copy size={13} />, () => setBlocks(bs => [...bs.slice(0, i + 1), { ...b, id: uid() }, ...bs.slice(i + 1)]))}
+                    {tb(b.visible ? 'Ocultar' : 'Mostrar', b.visible ? <EyeOff size={13} /> : <Eye size={13} />, () => update(b.id, { visible: !b.visible }))}
+                    {tb('Excluir', <Trash2 size={13} />, () => { setBlocks(bs => bs.filter(x => x.id !== b.id)); setSelected(null); })}</div>}
+                  {render(b)}
+                </div>
+              </div>)}
+              {dropAt === visibleBlocks.length && <div className="h-1 rounded bg-primary" />}
+              {!preview && <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste blocos da lateral esquerda para cá</div>}
+            </article>
           </div>
         </div>
-
-        <div {...zone('intro', d => { if (d.kind === 'field') insertTag(d.tag); })}>
-          <label className="field-label">Apresentação (solte campos aqui)<textarea ref={introRef} rows={3} value={intro} onChange={e => setIntro(e.target.value)} /></label>
-          <p className="mt-2 rounded-md bg-secondary p-3 text-sm">{filled}</p>
-        </div>
-
-        <div {...zone('items', d => { if (d.kind === 'item') addItem(d.item); })}>
-          <h3 className="mb-2 font-semibold">Itens e escopo</h3>
-          {items.length === 0 ? <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste serviços do painel para cá</div> :
-            <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="py-2">Descrição</th><th className="w-16">Qtd.</th><th className="w-28">Unitário</th><th className="w-28 text-right">Total</th><th className="w-8" /></tr></thead>
-              <tbody>{items.map((it, i) => <tr key={i} className="border-b">
-                <td className="py-1.5 pr-2"><input className="w-full bg-transparent" value={it.description} onChange={e => setItems(items.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} /></td>
-                <td><input aria-label="Quantidade" type="number" min="1" className="w-14 rounded border bg-background px-1" value={it.qty} onChange={e => setItems(items.map((x, j) => j === i ? { ...x, qty: Math.max(1, Number(e.target.value)) } : x))} /></td>
-                <td><input aria-label="Valor unitário" type="number" min="0" className="w-24 rounded border bg-background px-1" value={it.unit} onChange={e => setItems(items.map((x, j) => j === i ? { ...x, unit: Math.max(0, Number(e.target.value)) } : x))} /></td>
-                <td className="text-right font-medium">{money(it.qty * it.unit)}</td>
-                <td><Button size="icon" variant="ghost" title="Remover item" onClick={() => setItems(items.filter((_, j) => j !== i))}><Trash2 size={14} /></Button></td></tr>)}</tbody></table>}
-          <div className="mt-3 flex flex-wrap items-center justify-end gap-4 text-sm"><label className="flex items-center gap-2">Desconto (%)<input type="number" min="0" max="100" className="w-16 rounded border bg-background px-1" value={discount} onChange={e => setDiscount(Number(e.target.value))} /></label><span>Total: <strong className="text-lg">{money(total)}</strong></span></div>
-        </div>
-
-        <div {...zone('terms', d => { if (d.kind === 'term') setTerms({ ...terms, [d.key]: d.value }); })}>
-          <h3 className="mb-2 font-semibold">Condições comerciais <small className="font-normal text-muted-foreground">(solte condições aqui)</small></h3>
-          <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => <Fragment key={k}><dt className="font-medium">{termLabels[k]}</dt><dd><input aria-label={termLabels[k]} className="w-full bg-transparent" value={terms[k]} onChange={e => setTerms({ ...terms, [k]: e.target.value })} /></dd></Fragment>)}</dl>
-        </div>
-        <footer className="mt-10 grid grid-cols-2 gap-8 text-center text-xs text-muted-foreground"><div className="border-t pt-2">{contact} · {client}</div><div className="border-t pt-2">{owner} · Studio Criativo</div></footer>
-      </article>
+      </section>
+      {rightOpen && !preview && <aside className="w-72 shrink-0 overflow-y-auto border-l p-4 max-lg:hidden">
+        <div className="mb-3 flex items-center justify-between"><strong className="text-sm">Propriedades</strong><Button variant="ghost" size="icon" className="h-7 w-7" title="Recolher" onClick={() => setRightOpen(false)}><ChevronRight size={15} /></Button></div>
+        <div className="mb-4 flex gap-1">{(['Bloco', 'Comentários'] as const).map(t => <Button key={t} size="sm" variant={rightTab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setRightTab(t)}>{t}{t === 'Comentários' && ` ${comments.length}`}</Button>)}</div>
+        {rightTab === 'Comentários' ? <div className="space-y-2 text-sm">{comments.map((m, i) => <p key={i} className="rounded-md bg-secondary p-2">{m}</p>)}<form onSubmit={e => { e.preventDefault(); if (comment.trim()) { setComments([...comments, `Marina: ${comment.trim()}`]); setComment(''); } }}><textarea className="w-full rounded-md border bg-background p-2" rows={3} placeholder="Adicionar comentário" value={comment} onChange={e => setComment(e.target.value)} /><Button size="sm" type="submit" className="w-full">Comentar</Button></form></div>
+          : !sel ? <p className="text-sm text-muted-foreground">Selecione um bloco no documento para editar suas propriedades.</p>
+            : <div className="space-y-4 text-sm">
+              <div className="flex items-center justify-between"><strong>{sel.label}</strong><small className="text-muted-foreground">{labelOf(sel.type)}</small></div>
+              <label className="flex items-center justify-between">Mostrar no documento<Switch checked={sel.visible} onCheckedChange={v => update(sel.id, { visible: v })} /></label>
+              <label className="block">Nome do bloco<input className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.label} onChange={e => update(sel.id, { label: e.target.value })} /></label>
+              <div><p className="mb-1">Alinhamento</p><div className="flex gap-1">{([['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]] as const).map(([v, I]) => <Button key={v} size="icon" variant={sel.align === v ? 'secondary' : 'outline'} className="h-8 w-8" title={v} onClick={() => update(sel.id, { align: v })}><I size={14} /></Button>)}</div></div>
+              <label className="block">Espaçamento inferior<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.spacing} onChange={e => update(sel.id, { spacing: e.target.value as Block['spacing'] })}><option value="compact">Compacto</option><option value="normal">Normal</option><option value="wide">Amplo</option></select></label>
+              <label className="flex items-center justify-between">Cor de destaque<input type="color" value={sel.accent} onChange={e => update(sel.id, { accent: e.target.value })} /></label>
+              {sel.type === 'client' && <label className="block">Cliente vinculado<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={client} onChange={e => { setClient(e.target.value); const x = clients.find(y => y.client === e.target.value); if (x) setOwner(x.owner); }}>{clients.map(x => <option key={x.client}>{x.client}</option>)}</select></label>}
+              {sel.type === 'client' && <label className="block">Responsável<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={owner} onChange={e => setOwner(e.target.value)}><option>Marina</option><option>Lucas</option><option>Pedro</option></select></label>}
+              <p className="text-xs text-muted-foreground">{['client', 'products', 'services', 'financial'].includes(sel.type) ? 'Bloco vinculado ao cadastro: os dados se atualizam automaticamente.' : 'Conteúdo editável independente, sem vínculo com cadastro.'}</p>
+            </div>}
+      </aside>}
     </div>
   </div>;
 }
