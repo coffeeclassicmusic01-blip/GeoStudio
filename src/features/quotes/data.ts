@@ -15,3 +15,13 @@ export const shortDate = (date: string) => date ? `${date.slice(8,10)} out, 2026
 export function filterQuotes(quotes: Quote[], search: string, status: string, owner: string, period: string) {
  return quotes.filter(q => `${q.client} ${q.project} ${q.id}`.toLowerCase().includes(search.toLowerCase()) && (status === 'Todos os status' || q.status === status) && (owner === 'Todos os responsáveis' || q.owner === owner) && (period !== 'Últimos 7 dias' || q.date >= '2026-10-04'));
 }
+
+export type QuoteItem = { description: string; qty: number; unit: number };
+export const commercialTerms = { validity: '15 dias corridos', payment: '50% na aprovação e 50% na entrega', delivery: 'Conforme cronograma acordado após aprovação', warranty: '90 dias de suporte para correções' };
+/** Divide o valor do orçamento em itens demonstrativos cuja soma é exatamente o valor total. */
+export function quoteItems(q: Quote): QuoteItem[] {
+  const parts: [string, number][] = [['Diagnóstico e planejamento', 0.2], [q.project, 0.6], ['Gestão, testes e entrega', 0.2]];
+  const items = parts.map(([description, share]) => ({ description, qty: 1, unit: Math.round(q.value * share) }));
+  items[1].unit += q.value - items.reduce((s, i) => s + i.unit, 0);
+  return items;
+}
