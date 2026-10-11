@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+import { Fragment, useMemo, useRef, useState, type DragEvent } from 'react';
 import { GripVertical, Plus, Save, Trash2, Download, Building2, ListChecks, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { builderTotal, commercialTerms, defaultCatalog, money, termLabels, termOptions, type Quote, type QuoteItem, type Terms } from './data';
@@ -93,7 +93,7 @@ export function QuoteBuilder({ quotes, nextId, onCreate, notify }: { quotes: Quo
 
         <div {...zone('terms', d => { if (d.kind === 'term') setTerms({ ...terms, [d.key]: d.value }); })}>
           <h3 className="mb-2 font-semibold">Condições comerciais <small className="font-normal text-muted-foreground">(solte condições aqui)</small></h3>
-          <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => <><dt key={`${k}-l`} className="font-medium">{termLabels[k]}</dt><dd key={`${k}-v`}><input aria-label={termLabels[k]} className="w-full bg-transparent" value={terms[k]} onChange={e => setTerms({ ...terms, [k]: e.target.value })} /></dd></>)}</dl>
+          <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => <Fragment key={k}><dt className="font-medium">{termLabels[k]}</dt><dd><input aria-label={termLabels[k]} className="w-full bg-transparent" value={terms[k]} onChange={e => setTerms({ ...terms, [k]: e.target.value })} /></dd></Fragment>)}</dl>
         </div>
         <footer className="mt-10 grid grid-cols-2 gap-8 text-center text-xs text-muted-foreground"><div className="border-t pt-2">{contact} · {client}</div><div className="border-t pt-2">{owner} · Studio Criativo</div></footer>
       </article>
