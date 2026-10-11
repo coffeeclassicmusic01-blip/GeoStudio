@@ -1,6 +1,6 @@
 export const statuses = ['Em elaboração', 'Enviado', 'Em negociação', 'Aprovado', 'Perdido'] as const;
 export type Status = typeof statuses[number];
-export type Quote = { id: string; client: string; initials: string; project: string; value: number; status: Status; owner: string; date: string; followup: string; contact: string; email: string; phone: string; notes: string[]; color: string };
+export type Quote = { id: string; client: string; initials: string; project: string; value: number; status: Status; owner: string; date: string; followup: string; contact: string; email: string; phone: string; notes: string[]; color: string; items?: QuoteItem[]; terms?: Terms; discount?: number };
 export const initialQuotes: Quote[] = [
   { id:'ORC-2026-048',client:'Nexum Tecnologia',initials:'NX',project:'Redesign de plataforma digital',value:24500,status:'Em negociação',owner:'Marina',date:'2026-10-09',followup:'2026-10-10',contact:'Rafael Oliveira',email:'rafael@nexum.example',phone:'(11) 99000-1048',notes:['09 out · Marina enviou a proposta revisada.','08 out · Cliente solicitou ajuste no escopo e prazo de entrega.'],color:'teal' },
   { id:'ORC-2026-047',client:'Studio Forma',initials:'SF',project:'Identidade visual e brandbook',value:12800,status:'Enviado',owner:'Lucas',date:'2026-10-08',followup:'2026-10-10',contact:'Beatriz Costa',email:'beatriz@forma.example',phone:'(11) 99000-1047',notes:['08 out · Proposta enviada por e-mail. Aguardando avaliação.'],color:'violet' },
@@ -17,11 +17,35 @@ export function filterQuotes(quotes: Quote[], search: string, status: string, ow
 }
 
 export type QuoteItem = { description: string; qty: number; unit: number };
-export const commercialTerms = { validity: '15 dias corridos', payment: '50% na aprovação e 50% na entrega', delivery: 'Conforme cronograma acordado após aprovação', warranty: '90 dias de suporte para correções' };
+export type Terms = { validity: string; payment: string; delivery: string; warranty: string };
+export const commercialTerms: Terms = { validity: '15 dias corridos', payment: '50% na aprovação e 50% na entrega', delivery: 'Conforme cronograma acordado após aprovação', warranty: '90 dias de suporte para correções' };
 /** Divide o valor do orçamento em itens demonstrativos cuja soma é exatamente o valor total. */
 export function quoteItems(q: Quote): QuoteItem[] {
+  if (q.items?.length) return q.items;
   const parts: [string, number][] = [['Diagnóstico e planejamento', 0.2], [q.project, 0.6], ['Gestão, testes e entrega', 0.2]];
   const items = parts.map(([description, share]) => ({ description, qty: 1, unit: Math.round(q.value * share) }));
   items[1]!.unit += q.value - items.reduce((s, i) => s + i.unit, 0);
   return items;
+}
+
+/** Catálogo padrão de serviços (editável na tela de montagem). */
+export const defaultCatalog: QuoteItem[] = [
+  { description: 'Diagnóstico e planejamento estratégico', qty: 1, unit: 3500 },
+  { description: 'Design de interface (por tela)', qty: 1, unit: 900 },
+  { description: 'Desenvolvimento de website institucional', qty: 1, unit: 12000 },
+  { description: 'Loja virtual / e-commerce', qty: 1, unit: 25000 },
+  { description: 'Identidade visual e brandbook', qty: 1, unit: 9800 },
+  { description: 'Hora de consultoria', qty: 1, unit: 250 },
+  { description: 'Suporte e manutenção mensal', qty: 1, unit: 1200 },
+];
+export const termOptions: Record<keyof Terms, string[]> = {
+  validity: ['15 dias corridos', '30 dias corridos', '7 dias corridos'],
+  payment: ['50% na aprovação e 50% na entrega', 'À vista com 5% de desconto', '3x sem juros no boleto', '30% de entrada + 2 parcelas'],
+  delivery: ['Conforme cronograma acordado após aprovação', '30 dias úteis', '60 dias úteis'],
+  warranty: ['90 dias de suporte para correções', '30 dias de suporte', '6 meses de suporte'],
+};
+export const termLabels: Record<keyof Terms, string> = { validity: 'Validade', payment: 'Pagamento', delivery: 'Prazo de entrega', warranty: 'Garantia' };
+export function builderTotal(items: QuoteItem[], discountPct: number) {
+  const sub = items.reduce((s, i) => s + i.qty * i.unit, 0);
+  return Math.round(sub * (1 - Math.min(100, Math.max(0, discountPct)) / 100) * 100) / 100;
 }

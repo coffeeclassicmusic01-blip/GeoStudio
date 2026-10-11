@@ -11,3 +11,8 @@ import { test as _t, expect as _e } from 'vitest';
 _t('itens do PDF somam exatamente o valor do orçamento', () => {
   for (const q of _iq) _e(_qi(q).reduce((s, i) => s + i.unit * i.qty, 0)).toBe(q.value);
 });
+
+import { builderTotal as _bt } from './data';
+_t('total da montagem aplica desconto percentual', () => {
+  _e(_bt([{ description: 'a', qty: 2, unit: 1000 }, { description: 'b', qty: 1, unit: 500 }], 10)).toBe(2250);
+});
