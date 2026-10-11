@@ -10,6 +10,8 @@ export const initialQuotes: Quote[] = [
   { id:'ORC-2026-043',client:'Lumina Saúde',initials:'LS',project:'Portal de agendamento online',value:32000,status:'Enviado',owner:'Marina',date:'2026-10-04',followup:'2026-10-13',contact:'Luiza Mendes',email:'luiza@lumina.example',phone:'(11) 99000-1043',notes:['04 out · Proposta enviada ao financeiro.'],color:'rose' },
   { id:'ORC-2026-042',client:'Mova Fitness',initials:'MF',project:'Landing page e automação',value:14500,status:'Perdido',owner:'Pedro',date:'2026-10-03',followup:'',contact:'Gustavo Alves',email:'gustavo@mova.example',phone:'(11) 99000-1042',notes:['08 out · Cliente adiou o projeto por restrição de orçamento.'],color:'lime' },
 ];
+const colorCycle = ['teal','violet','green','blue','amber','rose','lime'] as const;
+export function pickColor(index: number) { return colorCycle[index % colorCycle.length]!; }
 export const money = (value: number) => value.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 export const shortDate = (date: string) => date ? `${date.slice(8,10)} out, 2026` : '—';
 export function filterQuotes(quotes: Quote[], search: string, status: string, owner: string, period: string) {
