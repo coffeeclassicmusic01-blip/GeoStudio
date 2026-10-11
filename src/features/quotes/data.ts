@@ -22,6 +22,6 @@ export const commercialTerms = { validity: '15 dias corridos', payment: '50% na 
 export function quoteItems(q: Quote): QuoteItem[] {
   const parts: [string, number][] = [['Diagnóstico e planejamento', 0.2], [q.project, 0.6], ['Gestão, testes e entrega', 0.2]];
   const items = parts.map(([description, share]) => ({ description, qty: 1, unit: Math.round(q.value * share) }));
-  items[1].unit += q.value - items.reduce((s, i) => s + i.unit, 0);
+  items[1]!.unit += q.value - items.reduce((s, i) => s + i.unit, 0);
   return items;
 }
