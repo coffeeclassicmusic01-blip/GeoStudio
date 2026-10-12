@@ -88,11 +88,12 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
   const [rightOpen, setRightOpen] = useState(true);
   const [preview, setPreview] = useState(false);
   const [margins, setMargins] = useState({ top: 40, bottom: 40, left: 64, right: 64 });
+  const [dirty, setDirty] = useState(false);
   const all = [...items, ...services];
   const subtotal = builderTotal(all, 0);
   const total = builderTotal(all, discount);
   const sel = blocks.find(b => b.id === selected);
-  const update = (id: string, p: Partial<Block>) => setBlocks(bs => bs.map(b => b.id === id ? { ...b, ...p } : b));
+  const update = (id: string, p: Partial<Block>) => { setBlocks(bs => bs.map(b => b.id === id ? { ...b, ...p } : b)); setDirty(true); };
 
   function selectClient(name: string) {
     setClient(name);
@@ -102,13 +103,13 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
 
   function insert(type: BlockType, at = blocks.length) {
     const b = mk(type, type === 'text' ? { html: '<p>Escreva aqui…</p>' } : type === 'footer' ? { footerHtml: '<p>Escreva aqui…</p>' } : {});
-    setBlocks(bs => [...bs.slice(0, at), b, ...bs.slice(at)]); setSelected(b.id);
+    setBlocks(bs => [...bs.slice(0, at), b, ...bs.slice(at)]); setSelected(b.id); setDirty(true);
   }
   function move(id: string, to: number) {
-    setBlocks(bs => { const from = bs.findIndex(b => b.id === id); const b = bs[from]!; const rest = bs.filter(x => x.id !== id); const idx = to > from ? to - 1 : to; return [...rest.slice(0, idx), b, ...rest.slice(idx)]; });
+    setBlocks(bs => { const from = bs.findIndex(b => b.id === id); const b = bs[from]!; const rest = bs.filter(x => x.id !== id); const idx = to > from ? to - 1 : to; return [...rest.slice(0, idx), b, ...rest.slice(idx)]; }); setDirty(true);
   }
   function addItem(it: QuoteItem, service: boolean) {
-    (service ? setServices : setItems)(list => { const i = list.findIndex(x => x.description === it.description); return i >= 0 ? list.map((x, j) => j === i ? { ...x, qty: x.qty + 1 } : x) : [...list, { ...it }]; });
+    (service ? setServices : setItems)(list => { const i = list.findIndex(x => x.description === it.description); return i >= 0 ? list.map((x, j) => j === i ? { ...x, qty: x.qty + 1 } : x) : [...list, { ...it }]; }); setDirty(true);
   }
   const start = (d: Drag) => (e: DragEvent) => { e.dataTransfer.setData('application/json', JSON.stringify(d)); e.stopPropagation(); };
   const read = (e: DragEvent): Drag | null => { try { return JSON.parse(e.dataTransfer.getData('application/json')); } catch { return null; } };
@@ -154,8 +155,9 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
       partnerIds: selectedPartners.length ? selectedPartners : undefined,
     };
   }
-  const save = () => { const qq = build(); if (!qq) return; if (isEditing) { onUpdate(qq); notify(isRevision ? 'Revisão salva com sucesso.' : 'Orçamento atualizado com sucesso.'); } else { onCreate(qq); } };
+  const save = () => { const qq = build(); if (!qq) return; setDirty(false); if (isEditing) { onUpdate(qq); notify(isRevision ? 'Revisão salva com sucesso.' : 'Orçamento atualizado com sucesso.'); } else { onCreate(qq); } };
   const pdf = () => { const qq = build(); if (qq) { exportQuotePdf(qq); notify('PDF da proposta gerado.'); } };
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); pdf(); } else if (e.key === 'Escape' && !preview) { onClose(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); /* eslint-disable react-hooks/exhaustive-deps */ });
 
   function table(list: QuoteItem[], set: (l: QuoteItem[]) => void, title: string, service: boolean, accent: string) {
     return <div onDragOver={e => e.preventDefault()} onDrop={e => { const d = read(e); if (d?.kind === 'item') { e.preventDefault(); e.stopPropagation(); setDropAt(null); addItem(d.item, service); } }}>
@@ -227,7 +229,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
             {b.footerImg && <img src={b.footerImg} alt="Logo do rodapé" className="max-h-12 max-w-32 rounded-md object-contain" />}
           </div>
           {!preview && !b.footerImg && <label className="mt-2 flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"><ImageIcon size={12} />Adicionar imagem ao rodapé<input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload('footerImg', b.id, e)} /></label>}
-          {!preview && b.footerImg && <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => update(b.id, { footerImg: undefined })}>Remover imagem</Button>}
+          {!preview && b.footerImg && <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => update(b.id, { footerImg: '' })}>Remover imagem</Button>}
         </div>;
     }
   }
@@ -247,7 +249,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
   return <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground">
     <header className="flex flex-wrap items-center gap-3 border-b px-3 py-2">
       <span className="grid h-8 w-8 place-items-center rounded-md bg-primary font-bold text-primary-foreground">Ó</span>
-      <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate">{isRevision ? 'Revisão de' : isEditing ? 'Editar' : 'Novo'} orçamento — {project}</strong><span className="rounded bg-accent px-2 py-0.5 text-[11px] text-accent-foreground">{isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : isEditing ? 'Edição' : 'Rascunho'}</span></div><small className="text-muted-foreground">{editQuote?.id ?? nextId} · {isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : 'Versão 01'}</small></div>
+      <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate">{isRevision ? 'Revisão de' : isEditing ? 'Editar' : 'Novo'} orçamento — {project}</strong>{dirty && <span className="unsaved-dot" title="Alterações não salvas" />}<span className="rounded bg-accent px-2 py-0.5 text-[11px] text-accent-foreground">{isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : isEditing ? 'Edição' : 'Rascunho'}</span></div><small className="text-muted-foreground">{editQuote?.id ?? nextId} · {isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : 'Versão 01'}</small></div>
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-xs text-muted-foreground">Projeto<input className="h-7 w-40 rounded border bg-background px-2 text-xs" value={project} onChange={e => setProject(e.target.value)} /></label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">Follow-up<input type="date" className="h-7 rounded border bg-background px-2 text-xs" value={followup} onChange={e => setFollowup(e.target.value)} /></label>
@@ -349,13 +351,13 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
             {sel.type === 'header' && <div className="border-t pt-3">
               <strong className="mb-2 block text-xs">Imagem do cabeçalho</strong>
               {sel.headerImg
-                ? <div className="flex items-center gap-2"><img src={sel.headerImg} alt="Preview" className="h-12 rounded border" /><Button variant="outline" size="sm" onClick={() => update(sel.id, { headerImg: undefined })}>Remover</Button></div>
+                ? <div className="flex items-center gap-2"><img src={sel.headerImg} alt="Preview" className="h-12 rounded border" /><Button variant="outline" size="sm" onClick={() => update(sel.id, { headerImg: '' })}>Remover</Button></div>
                 : <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2 text-xs text-muted-foreground"><ImageIcon size={14} />Enviar imagem de logo<input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload('headerImg', sel.id, e)} /></label>}
             </div>}
             {sel.type === 'footer' && <div className="border-t pt-3">
               <strong className="mb-2 block text-xs">Imagem do rodapé</strong>
               {sel.footerImg
-                ? <div className="flex items-center gap-2"><img src={sel.footerImg} alt="Preview" className="h-12 rounded border" /><Button variant="outline" size="sm" onClick={() => update(sel.id, { footerImg: undefined })}>Remover</Button></div>
+                ? <div className="flex items-center gap-2"><img src={sel.footerImg} alt="Preview" className="h-12 rounded border" /><Button variant="outline" size="sm" onClick={() => update(sel.id, { footerImg: '' })}>Remover</Button></div>
                 : <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2 text-xs text-muted-foreground"><ImageIcon size={14} />Enviar imagem para o rodapé<input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload('footerImg', sel.id, e)} /></label>}
             </div>}
             {sel.type === 'financial' && <div className="border-t pt-3">
