@@ -13,6 +13,45 @@ export type Partner = {
   contact: string; email: string; phone: string;
   notes: string; color: string;
 };
+export type Client = {
+  id: string; name: string; initials: string; contact: string;
+  email: string; phone: string; notes: string; color: string;
+};
+
+export const partnerCategories = ['Design', 'Desenvolvimento', 'Marketing', 'Consultoria', 'Gráfica'] as const;
+
+export const initialClients: Client[] = [
+  { id:'CLI-001', name:'Nexum Tecnologia', initials:'NX', contact:'Rafael Oliveira', email:'rafael@nexum.example', phone:'(11) 99000-1048', notes:'Cliente recorrente, foco em plataformas digitais.', color:'teal' },
+  { id:'CLI-002', name:'Studio Forma', initials:'SF', contact:'Beatriz Costa', email:'beatriz@forma.example', phone:'(11) 99000-1047', notes:'Estúdio de design, interessado em identidade visual.', color:'violet' },
+  { id:'CLI-003', name:'Verde & Co.', initials:'VC', contact:'Ana Martins', email:'ana@verde.example', phone:'(11) 99000-1046', notes:'E-commerce em crescimento, projetos de integração.', color:'green' },
+  { id:'CLI-004', name:'Atlas Engenharia', initials:'AE', contact:'Fernando Lima', email:'fernando@atlas.example', phone:'(11) 99000-1045', notes:'Empresa tradicional, primeiro projeto web.', color:'blue' },
+  { id:'CLI-005', name:'Café Aurora', initials:'CA', contact:'Clara Souza', email:'clara@aurora.example', phone:'(11) 99000-1044', notes:'Marca emergente, campanhas de lançamento.', color:'amber' },
+  { id:'CLI-006', name:'Lumina Saúde', initials:'LS', contact:'Luiza Mendes', email:'luiza@lumina.example', phone:'(11) 99000-1043', notes:'Setor de saúde, portal de agendamento.', color:'rose' },
+  { id:'CLI-007', name:'Mova Fitness', initials:'MF', contact:'Gustavo Alves', email:'gustavo@mova.example', phone:'(11) 99000-1042', notes:'Projeto pausado por orçamento, retomar no próximo trimestre.', color:'lime' },
+];
+
+export function filterClients(clients: Client[], quotes: Quote[], search: string, statusFilter: string) {
+  return clients.filter(c => {
+    const matchesSearch = `${c.name} ${c.contact} ${c.email}`.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (statusFilter === 'Todos os status') return true;
+    const clientQuotes = quotes.filter(q => q.client === c.name);
+    if (statusFilter === 'Com orçamentos aprovados') return clientQuotes.some(q => q.status === 'Aprovado');
+    if (statusFilter === 'Em negociação') return clientQuotes.some(q => q.status === 'Em negociação');
+    if (statusFilter === 'Sem propostas') return clientQuotes.length === 0;
+    if (statusFilter === 'Com propostas ativas') return clientQuotes.some(q => !['Aprovado','Perdido'].includes(q.status));
+    return true;
+  });
+}
+
+export function filterPartners(partners: Partner[], quotes: Quote[], search: string, categoryFilter: string) {
+  return partners.filter(p => {
+    const matchesSearch = `${p.name} ${p.category} ${p.contact} ${p.email}`.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (categoryFilter === 'Todas as categorias') return true;
+    return p.category === categoryFilter;
+  });
+}
 
 export const initialPartners: Partner[] = [
   { id:'PAR-001', name:'Pixel Studio', initials:'PS', category:'Design', contact:'Júlia Reis', email:'julia@pixelstudio.example', phone:'(11) 98800-0101', notes:'Parceiro para projetos de design de interface e identidade visual.', color:'violet' },
