@@ -3,7 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Bold, ChevronLeft, ChevronRight, Copy, D
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { builderTotal, commercialTerms, defaultCatalog, money, pickColor, quoteItems, termLabels, termOptions, type Quote, type QuoteItem, type Terms } from './data';
+import { builderTotal, commercialTerms, defaultCatalog, money, pickColor, quoteItems, termLabels, termOptions, type Partner, type Quote, type QuoteItem, type Terms } from './data';
 import { exportQuotePdf } from './pdf';
 
 type BlockType = 'logo' | 'title' | 'number' | 'client' | 'products' | 'services' | 'financial' | 'terms' | 'text' | 'image' | 'signature';
@@ -26,7 +26,7 @@ function Editable({ html, onChange, className, placeholder }: { html: string; on
   return <div ref={ref} contentEditable suppressContentEditableWarning data-placeholder={placeholder} onBlur={e => onChange(e.currentTarget.innerHTML)} className={`outline-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] ${className ?? ''}`} />;
 }
 
-export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, onClose, notify }: { quotes: Quote[]; nextId: string; editQuote?: Quote | null; onCreate: (q: Quote) => void; onUpdate: (q: Quote) => void; onClose: () => void; notify: (t: string) => void }) {
+export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, onCreate, onUpdate, onClose, notify }: { quotes: Quote[]; partners: Partner[]; nextId: string; editQuote?: Quote | null; isRevision?: boolean; onCreate: (q: Quote) => void; onUpdate: (q: Quote) => void; onClose: () => void; notify: (t: string) => void }) {
   const clients = useMemo(() => Array.from(new Map(quotes.map(q => [q.client, q])).values()), [quotes]);
   const isEditing = !!editQuote;
   const existingItems = editQuote?.items?.length ? editQuote.items : quoteItems(editQuote ?? { value: 0, project: '' } as Quote);
@@ -39,6 +39,7 @@ export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, on
   const [services, setServices] = useState<QuoteItem[]>(isEditing ? [] : [defaultCatalog[0]!]);
   const [terms, setTerms] = useState<Terms>(editQuote?.terms ?? commercialTerms);
   const [discount, setDiscount] = useState(editQuote?.discount ?? 0);
+  const [selectedPartners, setSelectedPartners] = useState<string[]>(editQuote?.partnerIds ?? []);
   const [blocks, setBlocks] = useState<Block[]>(() => [mk('logo'), mk('title', { html: `<h2>Proposta comercial — ${editQuote?.client ?? c?.client ?? ''}</h2><p>Solução personalizada para ${editQuote?.project ?? c?.project ?? 'o seu projeto'}.</p>` }), mk('client'), mk('products'), mk('services'), mk('financial'), mk('terms'), mk('signature')]);
   const [selected, setSelected] = useState<string | null>(null); const [dropAt, setDropAt] = useState<number | null>(null);
   const [zoom, setZoom] = useState(100); const [tab, setTab] = useState<'Blocos' | 'Clientes' | 'Produtos'>('Blocos'); const [q, setQ] = useState('');
@@ -85,10 +86,11 @@ export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, on
       items: all,
       terms,
       discount,
+      partnerIds: selectedPartners.length ? selectedPartners : undefined,
     };
     return base;
   }
-  const save = () => { const qq = build(); if (!qq) return; if (isEditing) { onUpdate(qq); notify('Orçamento atualizado com sucesso.'); } else { onCreate(qq); } };
+  const save = () => { const qq = build(); if (!qq) return; if (isEditing) { onUpdate(qq); notify(isRevision ? 'Revisão salva com sucesso.' : 'Orçamento atualizado com sucesso.'); } else { onCreate(qq); } };
   const pdf = () => { const qq = build(); if (qq) { exportQuotePdf(qq); notify('PDF da proposta gerado.'); } };
 
   function table(list: QuoteItem[], set: (l: QuoteItem[]) => void, title: string, service: boolean, accent: string) {
@@ -130,7 +132,7 @@ export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, on
   return <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground">
     <header className="flex flex-wrap items-center gap-3 border-b px-3 py-2">
       <span className="grid h-8 w-8 place-items-center rounded-md bg-primary font-bold text-primary-foreground">Ó</span>
-      <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate">{isEditing ? 'Editar' : 'Novo'} orçamento — {project}</strong><span className="rounded bg-accent px-2 py-0.5 text-[11px] text-accent-foreground">{isEditing ? 'Edição' : 'Rascunho'}</span></div><small className="text-muted-foreground">{editQuote?.id ?? nextId} · Versão 01</small></div>
+      <div className="min-w-0"><div className="flex items-center gap-2"><strong className="truncate">{isRevision ? 'Revisão de' : isEditing ? 'Editar' : 'Novo'} orçamento — {project}</strong><span className="rounded bg-accent px-2 py-0.5 text-[11px] text-accent-foreground">{isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : isEditing ? 'Edição' : 'Rascunho'}</span></div><small className="text-muted-foreground">{editQuote?.id ?? nextId} · {isRevision ? `Revisão ${editQuote?.revisionNumber ?? 2}` : 'Versão 01'}</small></div>
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-xs text-muted-foreground">Projeto<input className="h-7 w-40 rounded border bg-background px-2 text-xs" value={project} onChange={e => setProject(e.target.value)} /></label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">Follow-up<input type="date" className="h-7 rounded border bg-background px-2 text-xs" value={followup} onChange={e => setFollowup(e.target.value)} /></label>
@@ -149,7 +151,7 @@ export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, on
     <div className="flex min-h-0 flex-1">
       {leftOpen && <aside className="flex w-72 shrink-0 flex-col border-r max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-10 max-md:bg-background">
         <div className="flex items-center justify-between p-3"><strong className="text-sm">Espaço de trabalho</strong><Button variant="ghost" size="icon" className="h-7 w-7" title="Recolher" onClick={() => setLeftOpen(false)}><ChevronLeft size={15} /></Button></div>
-        <div className="flex gap-1 px-3">{(['Blocos', 'Clientes', 'Produtos'] as const).map(t => <Button key={t} size="sm" variant={tab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setTab(t)}>{t}</Button>)}</div>
+        <div className="flex gap-1 px-3">{(['Blocos', 'Clientes', 'Parceiros', 'Produtos'] as const).map(t => <Button key={t} size="sm" variant={tab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setTab(t)}>{t}</Button>)}</div>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {tab === 'Blocos' && <><label className="mb-3 flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm"><Search size={14} /><input className="w-full bg-transparent outline-none" placeholder="Buscar blocos…" value={q} onChange={e => setQ(e.target.value)} /></label>
             {filteredPalette.map(g => <div key={g.group} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{g.group.toUpperCase()}</small>
@@ -158,6 +160,7 @@ export function QuoteBuilder({ quotes, nextId, editQuote, onCreate, onUpdate, on
                 <div className="min-w-0 flex-1"><p className="text-sm font-medium">{i.label}</p><p className="truncate text-[11px] text-muted-foreground">{i.hint}</p></div>
                 <Button variant="ghost" size="icon" className="h-7 w-7" title={`Inserir ${i.label}`} onClick={() => insert(i.type)}><Plus size={14} /></Button></div>)}</div>)}</>}
           {tab === 'Clientes' && clients.map(x => <button key={x.client} onClick={() => { selectClient(x.client); notify(`Dados de ${x.client} vinculados ao documento.`); }} className={`mb-1 w-full rounded-md border p-2 text-left text-sm ${x.client === client ? 'border-primary bg-accent' : ''}`}><strong>{x.client}</strong><p className="text-xs text-muted-foreground">{x.contact} · {x.email}</p></button>)}
+          {tab === 'Parceiros' && <><p className="mb-3 text-[11px] text-muted-foreground">Selecione os parceiros que participam desta proposta.</p>{partners.map(p => <label key={p.id} className={`mb-1 flex cursor-pointer items-center gap-3 rounded-md border p-2 text-sm ${selectedPartners.includes(p.id) ? 'border-primary bg-accent' : ''}`}><input type="checkbox" className="h-4 w-4" checked={selectedPartners.includes(p.id)} onChange={e => { setSelectedPartners(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id)); }} /><span className="grid h-8 w-8 place-items-center rounded-md bg-accent text-xs font-bold text-accent-foreground">{p.initials}</span><div className="min-w-0 flex-1"><strong className="block truncate">{p.name}</strong><small className="text-muted-foreground">{p.category}</small></div></label>)}</>}
           {tab === 'Produtos' && <>{[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
             {defaultCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it, service: !!s })} onDoubleClick={() => addItem(it, !!s)} className="mt-1 flex cursor-grab items-center justify-between gap-2 rounded-md border p-2 text-xs hover:border-primary"><span>{it.description}</span><strong>{money(it.unit)}</strong></div>)}</div>)}</>}
         </div>
