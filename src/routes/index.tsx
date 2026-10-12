@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUpRight, Bell, Briefcase, CalendarDays, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Download, Ellipsis, FileText, GitBranch, LayoutDashboard, LayoutGrid, ListFilter, Mail, MessageSquare, PanelLeftClose, Phone, Plus, Receipt, Search, Settings2, SlidersHorizontal, Sparkles, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, Bell, Briefcase, CalendarDays, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Download, Edit3, Ellipsis, FileText, GitBranch, LayoutDashboard, LayoutGrid, ListFilter, Mail, MessageSquare, PanelLeftClose, Phone, Plus, Receipt, Search, Settings2, SlidersHorizontal, Sparkles, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { exportQuotePdf } from '@/features/quotes/pdf';
@@ -28,6 +28,10 @@ function QuotesPage(){
  const [selectedClient,setSelectedClient]=useState<Client|null>(null);
  const [selectedPartner,setSelectedPartner]=useState<Partner|null>(null);
  const [partnerSearch,setPartnerSearch]=useState('');
+ const [clientSearch,setClientSearch]=useState(''); const [clientStatusFilter,setClientStatusFilter]=useState('Todos os status'); const [clientView,setClientView]=useState('Cards');
+ const [partnerCategoryFilter,setPartnerCategoryFilter]=useState('Todas as categorias'); const [partnerView,setPartnerView]=useState('Cards');
+ const [clientDialogOpen,setClientDialogOpen]=useState(false); const [editingClient,setEditingClient]=useState<Client|null>(null);
+ const [partnerDialogOpen,setPartnerDialogOpen]=useState(false); const [editingPartner,setEditingPartner]=useState<Partner|null>(null);
  const [invoices,setInvoices]=useState<Invoice[]>(initialInvoices); const [invoiceQuote,setInvoiceQuote]=useState<string|null>(null);
  const filtered=useMemo(()=>filterQuotes(quotes,search,status,owner,period).sort((a,b)=>sort?b.value-a.value:b.id.localeCompare(a.id)),[quotes,search,status,owner,period,sort]);
  const total=quotes.reduce((sum,q)=>sum+q.value,0); const approved=quotes.filter(q=>q.status==='Aprovado'); const approvedValue=approved.reduce((sum,q)=>sum+q.value,0); const pending=quotes.filter(q=>q.followup && q.followup<='2026-10-10' && !['Aprovado','Perdido'].includes(q.status));
@@ -97,9 +101,9 @@ function QuotesPage(){
       </div>;
     })()}
    </>:section==='Notas fiscais'?<InvoiceManager key={invoiceQuote??'list'} quotes={quotes} invoices={invoices} setInvoices={setInvoices} initialQuoteId={invoiceQuote} notify={notify}/>:section==='Parceiros'?<>
-    {!selectedPartner ? <><div className="list-heading"><div><h2>Parceiros de negócios <span>{partners.length}</span></h2><p>Sua rede de colaboradores e fornecedores.</p></div></div>
-    <div className="filters"><label className="search-input"><Search size={17}/><input placeholder="Buscar parceiro, categoria ou contato..." value={partnerSearch} onChange={e=>setPartnerSearch(e.target.value)}/>{partnerSearch&&<Button variant="ghost" size="icon" title="Limpar busca" onClick={()=>setPartnerSearch('')}><X size={14}/></Button>}</label></div>
-    <div className="clients-grid">{filteredPartners.map((p,i)=>{
+    {!selectedPartner ? <><div className="list-heading"><div><h2>Parceiros de negócios <span>{partners.length}</span></h2><p>Sua rede de colaboradores e fornecedores.</p></div><div className="view-switch">{cardTableOpts.map(v=><Button variant="ghost" size="sm" key={v.label} className={partnerView===v.label?'selected':''} onClick={()=>setPartnerView(v.label)}><v.icon size={15}/>{v.label}</Button>)}</div></div>
+    <div className="filters"><label className="search-input"><Search size={17}/><input placeholder="Buscar parceiro, categoria ou contato..." value={partnerSearch} onChange={e=>setPartnerSearch(e.target.value)}/>{partnerSearch&&<Button variant="ghost" size="icon" title="Limpar busca" onClick={()=>setPartnerSearch('')}><X size={14}/></Button>}</label><FilterSelect icon={<ListFilter size={15}/>} value={partnerCategoryFilter} options={['Todas as categorias',...partnerCategories]} onChange={v=>setPartnerCategoryFilter(v)}/><Button variant="outline" size="icon" title="Limpar filtros" onClick={()=>{setPartnerSearch('');setPartnerCategoryFilter('Todas as categorias')}}><SlidersHorizontal/></Button></div>
+    {partnerView==='Cards'?<div className="clients-grid">{filteredPartners.map(p=>{
       const pQuotes=quotesForPartner(quotes,p.id);
       const pValue=pQuotes.reduce((s,x)=>s+x.value,0);
       return <article className="client-card" key={p.id}><span className={`client-logo ${p.color}`}>{p.initials}</span><h3>{p.name}</h3><span className="partner-category">{p.category}</span><p>{p.contact}</p><a href={`mailto:${p.email}`}><Mail size={15}/>{p.email}</a><span><Phone size={15}/>{p.phone}</span><div className="client-card-footer"><div><strong>{money(pValue)}</strong><small>{pQuotes.length} propostas</small></div><div className="card-actions"><Button variant="ghost" size="icon" title="Editar parceiro" onClick={()=>{setEditingPartner(p);setPartnerDialogOpen(true)}}><Edit3 size={15}/></Button><Button variant="ghost" size="sm" onClick={()=>setSelectedPartner(p)}>Ver propostas <ArrowUpRight/></Button></div></div></article>;
