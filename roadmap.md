@@ -4,3 +4,4 @@
 - [x] Verificar interações e apresentação.
 - [x] PDF da proposta e follow-up com IA.
 - [x] Tela de montagem de orçamento com blocos arrastáveis.
+- [x] Aba de notas fiscais por orçamento.
