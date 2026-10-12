@@ -6,7 +6,7 @@ export type Quote = {
   email: string; phone: string; notes: string[]; color: string;
   items?: QuoteItem[]; terms?: Terms; discount?: number;
   revisionOf?: string; revisionNumber?: number;
-  partnerIds?: string[];
+  partnerIds?: string[] | undefined;
 };
 export type Partner = {
   id: string; name: string; initials: string; category: string;
