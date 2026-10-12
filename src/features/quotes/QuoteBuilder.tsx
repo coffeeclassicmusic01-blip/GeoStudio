@@ -42,7 +42,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
   const [selectedPartners, setSelectedPartners] = useState<string[]>(editQuote?.partnerIds ?? []);
   const [blocks, setBlocks] = useState<Block[]>(() => [mk('logo'), mk('title', { html: `<h2>Proposta comercial — ${editQuote?.client ?? c?.client ?? ''}</h2><p>Solução personalizada para ${editQuote?.project ?? c?.project ?? 'o seu projeto'}.</p>` }), mk('client'), mk('products'), mk('services'), mk('financial'), mk('terms'), mk('signature')]);
   const [selected, setSelected] = useState<string | null>(null); const [dropAt, setDropAt] = useState<number | null>(null);
-  const [zoom, setZoom] = useState(100); const [tab, setTab] = useState<'Blocos' | 'Clientes' | 'Produtos'>('Blocos'); const [q, setQ] = useState('');
+  const [zoom, setZoom] = useState(100); const [tab, setTab] = useState<'Blocos' | 'Clientes' | 'Parceiros' | 'Produtos'>('Blocos'); const [q, setQ] = useState('');
   const [rightTab, setRightTab] = useState<'Bloco' | 'Comentários'>('Bloco'); const [comments, setComments] = useState<string[]>(['Marina: revisar prazo de entrega antes de enviar.']); const [comment, setComment] = useState('');
   const [leftOpen, setLeftOpen] = useState(true); const [rightOpen, setRightOpen] = useState(true); const [preview, setPreview] = useState(false);
   const all = [...items, ...services]; const subtotal = builderTotal(all, 0); const total = builderTotal(all, discount);
