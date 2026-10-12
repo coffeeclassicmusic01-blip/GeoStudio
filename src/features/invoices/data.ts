@@ -12,7 +12,7 @@ export type ClientFiscal = {
 
 export type Invoice = {
   id: string; quoteId: string; client: string; type: InvoiceType; status: InvoiceStatus;
-  number?: string; nature: string; cfop: string; serviceCode: string;
+  number?: string | undefined; nature: string; cfop: string; serviceCode: string;
   items: QuoteItem[]; taxRate: number; fiscal: ClientFiscal;
   notes: string; requestedBy: string; date: string;
 };
