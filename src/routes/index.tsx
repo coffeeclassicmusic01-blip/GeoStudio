@@ -28,6 +28,11 @@ function QuotesPage(){
  const [selectedClient,setSelectedClient]=useState<Client|null>(null);
  const [selectedPartner,setSelectedPartner]=useState<Partner|null>(null);
  const [partnerSearch,setPartnerSearch]=useState('');
+ const [clientView,setClientView]=useState('Cards'); const [partnerView,setPartnerView]=useState('Cards');
+ const [clientSearch,setClientSearch]=useState(''); const [clientStatusFilter,setClientStatusFilter]=useState('Todos os status');
+ const [partnerCategoryFilter,setPartnerCategoryFilter]=useState('Todas as categorias');
+ const [editingClient,setEditingClient]=useState<Client|null>(null); const [clientDialogOpen,setClientDialogOpen]=useState(false);
+ const [editingPartner,setEditingPartner]=useState<Partner|null>(null); const [partnerDialogOpen,setPartnerDialogOpen]=useState(false);
  const [invoices,setInvoices]=useState<Invoice[]>(initialInvoices); const [invoiceQuote,setInvoiceQuote]=useState<string|null>(null);
  const filtered=useMemo(()=>filterQuotes(quotes,search,status,owner,period).sort((a,b)=>sort?b.value-a.value:b.id.localeCompare(a.id)),[quotes,search,status,owner,period,sort]);
  const total=quotes.reduce((sum,q)=>sum+q.value,0); const approved=quotes.filter(q=>q.status==='Aprovado'); const approvedValue=approved.reduce((sum,q)=>sum+q.value,0); const pending=quotes.filter(q=>q.followup && q.followup<='2026-10-10' && !['Aprovado','Perdido'].includes(q.status));
