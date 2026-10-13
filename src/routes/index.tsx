@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUpRight, Bell, Briefcase, CalendarDays, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Download, Ellipsis, FileText, GitBranch, LayoutDashboard, LayoutGrid, ListFilter, Mail, MessageSquare, PanelLeftClose, Phone, Plus, Receipt, Search, Settings2, SlidersHorizontal, Sparkles, Users, X } from 'lucide-react';
+import { ArrowDown, Edit3, ArrowUpRight, Bell, Briefcase, CalendarDays, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Download, Ellipsis, FileText, GitBranch, LayoutDashboard, LayoutGrid, ListFilter, Mail, MessageSquare, PanelLeftClose, Phone, Plus, Receipt, Search, Settings2, SlidersHorizontal, Sparkles, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { exportQuotePdf } from '@/features/quotes/pdf';
