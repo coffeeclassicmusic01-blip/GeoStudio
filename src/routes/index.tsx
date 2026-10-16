@@ -83,14 +83,16 @@ function QuotesPage(){
   <main>
    <div className={`section-fade ${section}`} key={section}>
    <div className="page-heading"><div><div className="eyebrow">SEU PIPELINE, EM MOVIMENTO</div><h1>{section==='Visão geral'?'Visão geral':section}</h1><p>{headingText}</p></div><div className="heading-actions">{headingActions}</div></div>
-   <div className="metrics-grid">
-    <Metric label="Valor total em propostas" value={money(total)} icon={<FileText/>} trend="12,8%" detail={`${quotes.length} orçamentos neste mês`} tone="neutral" spark={[20,35,30,45,40,55,50,65]}/>
-    <Metric label="Em negociação" value={money(quotes.filter(q=>q.status==='Em negociação').reduce((s,q)=>s+q.value,0))} icon={<MessageSquare/>} trend="8,2%" detail={`${quotes.filter(q=>q.status==='Em negociação').length} oportunidades em aberto`} tone="teal" spark={[15,22,18,30,25,28,35,30]}/>
-    <Metric label="Valor aprovado" value={money(approvedValue)} icon={<Check/>} trend="18,6%" detail={`${approved.length} orçamento aprovado`} tone="green" spark={[5,10,15,20,25,30,40,45]}/>
-    <Metric label="Follow-ups pendentes" value={String(pending.length).padStart(2,'0')} icon={<Clock3/>} detail={`${pending.filter(q=>q.followup<'2026-10-10').length} atrasado · ${pending.filter(q=>q.followup==='2026-10-10').length} para hoje`} tone="amber" spark={[8,10,7,12,9,14,11,10]}/>
-   </div>
-   <PipelineBar quotes={quotes}/>
-   <div className="followup-banner"><div className="banner-symbol"><Clock3 size={19}/></div><p><strong>Uma conversa pode mudar tudo.</strong><span> Você tem {pending.length} follow-ups para colocar em dia.</span></p><Button variant="ghost" size="sm" onClick={()=>navigate('Follow-ups')}>Ver follow-ups <ArrowUpRight size={15}/></Button></div>
+   {section==='Visão geral' && <>
+    <div className="metrics-grid">
+     <Metric label="Valor total em propostas" value={money(total)} icon={<FileText/>} trend="12,8%" detail={`${quotes.length} orçamentos neste mês`} tone="neutral" spark={[20,35,30,45,40,55,50,65]}/>
+     <Metric label="Em negociação" value={money(quotes.filter(q=>q.status==='Em negociação').reduce((s,q)=>s+q.value,0))} icon={<MessageSquare/>} trend="8,2%" detail={`${quotes.filter(q=>q.status==='Em negociação').length} oportunidades em aberto`} tone="teal" spark={[15,22,18,30,25,28,35,30]}/>
+     <Metric label="Valor aprovado" value={money(approvedValue)} icon={<Check/>} trend="18,6%" detail={`${approved.length} orçamento aprovado`} tone="green" spark={[5,10,15,20,25,30,40,45]}/>
+     <Metric label="Follow-ups pendentes" value={String(pending.length).padStart(2,'0')} icon={<Clock3/>} detail={`${pending.filter(q=>q.followup<'2026-10-10').length} atrasado · ${pending.filter(q=>q.followup==='2026-10-10').length} para hoje`} tone="amber" spark={[8,10,7,12,9,14,11,10]}/>
+    </div>
+    <PipelineBar quotes={quotes}/>
+    <div className="followup-banner"><div className="banner-symbol"><Clock3 size={19}/></div><p><strong>Uma conversa pode mudar tudo.</strong><span> Você tem {pending.length} follow-ups para colocar em dia.</span></p><Button variant="ghost" size="sm" onClick={()=>navigate('Follow-ups')}>Ver follow-ups <ArrowUpRight size={15}/></Button></div>
+   </>}
    {section==='Orçamentos' ? <>
     {selectedIds.size>0&&<div className="batch-bar"><Check size={16}/><strong>{selectedIds.size} selecionado(s)</strong><Button size="sm" onClick={()=>batchUpdateStatus('Em negociação')}>Mover para Em negociação</Button><Button size="sm" onClick={()=>batchUpdateStatus('Aprovado')}>Marcar como Aprovado</Button><Button size="sm" onClick={batchExport}><Download size={13}/>Exportar PDFs</Button><Button size="sm" onClick={()=>setSelectedIds(new Set())}><X size={13}/>Limpar</Button></div>}
     <div className="list-heading"><div><h2>Todos os orçamentos <span>{quotes.length}</span></h2><p>Da primeira ideia ao próximo negócio fechado.</p></div><div className="view-switch">{viewSwitchOpts.map(v=><Button variant="ghost" size="sm" key={v.label} className={view===v.label?'selected':''} onClick={()=>setView(v.label)}><v.icon size={15}/>{v.label}</Button>)}</div></div>
