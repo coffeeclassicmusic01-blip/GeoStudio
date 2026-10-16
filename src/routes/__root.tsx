@@ -78,10 +78,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Órbita · Workspace" },
+      { title: "Geo Studio · Workspace" },
       { name: "description", content: "Seu workspace de propostas e relacionamentos." },
       
-      { property: "og:title", content: "Órbita · Workspace" },
+      { property: "og:title", content: "Geo Studio · Workspace" },
       { property: "og:description", content: "Seu workspace de propostas e relacionamentos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

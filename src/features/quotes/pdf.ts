@@ -7,15 +7,15 @@ export function exportQuotePdf(q: Quote) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210;
   doc.setFillColor(15, 76, 70); doc.rect(0, 0, W, 34, 'F');
-  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('órbita.', 15, 17);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('Studio Criativo · contato@orbita.example', 15, 25);
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('Geo Studio', 15, 17);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('Geoprocessamento · contato@geostudio.example', 15, 25);
   doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text('PROPOSTA COMERCIAL', W - 15, 17, { align: 'right' });
   doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.text(`${q.id} · Emitida em ${shortDate(q.date)}`, W - 15, 25, { align: 'right' });
   doc.setTextColor(30);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text('Cliente', 15, 46); doc.text('Responsável', 120, 46);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   [q.client, q.contact, q.email, q.phone].forEach((l, i) => doc.text(l, 15, 53 + i * 5.5));
-  [q.owner, 'Studio Criativo', `Projeto: ${q.project}`].forEach((l, i) => doc.text(doc.splitTextToSize(l, 75), 120, 53 + i * 5.5));
+  [q.owner, 'Geo Studio', `Projeto: ${q.project}`].forEach((l, i) => doc.text(doc.splitTextToSize(l, 75), 120, 53 + i * 5.5));
   autoTable(doc, {
     startY: 80, head: [['Descrição', 'Qtd.', 'Valor unitário', 'Total']],
     body: quoteItems(q).map(i => [i.description, String(i.qty), money(i.unit), money(i.unit * i.qty)]),
@@ -30,7 +30,7 @@ export function exportQuotePdf(q: Quote) {
     doc.setFont('helvetica', 'bold'); doc.text(`${k}:`, 15, y); doc.setFont('helvetica', 'normal'); doc.text(v, 60, y); y += 6;
   });
   y += 16; doc.setDrawColor(150); doc.line(15, y, 90, y); doc.line(120, y, 195, y);
-  doc.setFontSize(8.5); doc.text(`${q.contact} · ${q.client}`, 15, y + 5); doc.text(`${q.owner} · Studio Criativo`, 120, y + 5);
+  doc.setFontSize(8.5); doc.text(`${q.contact} · ${q.client}`, 15, y + 5); doc.text(`${q.owner} · Geo Studio`, 120, y + 5);
   doc.setTextColor(120); doc.setFontSize(8); doc.text('Documento gerado a partir de dados demonstrativos.', W / 2, 287, { align: 'center' });
   doc.save(`${q.id}-${q.client.replace(/\W+/g, '-')}.pdf`);
 }

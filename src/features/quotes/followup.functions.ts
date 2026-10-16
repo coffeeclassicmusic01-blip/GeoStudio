@@ -17,7 +17,7 @@ Canal: ${data.channel}${data.channel === 'E-mail' ? ' (inclua uma linha "Assunto
 Tom: ${data.tone}.
 Cliente: ${data.client} — contato: ${data.contact}
 Projeto: ${data.project} — valor: ${data.value} — status: ${data.status}
-Responsável que assina: ${data.owner}, Studio Criativo
+Responsável que assina: ${data.owner}, Geo Studio
 Histórico de contatos (mais recente primeiro):
 ${data.history.map(h => `- ${h}`).join('\n') || '- sem registros'}
 Instruções adicionais: ${data.extra || 'nenhuma'}

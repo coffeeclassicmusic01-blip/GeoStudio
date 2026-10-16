@@ -70,11 +70,11 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
   const [discount, setDiscount] = useState(editQuote?.discount ?? 0);
   const [selectedPartners, setSelectedPartners] = useState<string[]>(editQuote?.partnerIds ?? []);
   const [blocks, setBlocks] = useState<Block[]>(() => [
-    mk('header', { headerHtml: '<strong>Órbita Studio Criativo</strong><p>Design · Tecnologia · Estratégia<br>comercial@orbita.example · (11) 4000-1234</p>' }),
+    mk('header', { headerHtml: '<strong>Geo Studio</strong><p>Geoprocessamento · Projetos · Estratégia<br>contato@geostudio.example · (11) 4000-1234</p>' }),
     mk('title', { html: `<h2>Proposta comercial — ${editQuote?.client ?? c?.client ?? ''}</h2><p>Solução personalizada para ${editQuote?.project ?? c?.project ?? 'o seu projeto'}.</p>` }),
     mk('client'), mk('products'), mk('services'), mk('financial'), mk('terms'),
     mk('signature', { signatureHtml: '<p>Assinatura do cliente</p><p>Assinatura do fornecedor</p>' }),
-    mk('footer', { footerHtml: '<p>Documento gerado por Órbita · Studio Criativo — dados demonstrativos.</p>' }),
+    mk('footer', { footerHtml: '<p>Documento gerado por Geo Studio — dados demonstrativos.</p>' }),
   ]);
   const [selected, setSelected] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
@@ -180,7 +180,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
       case 'header':
         return <div className="flex items-start justify-between gap-4 border-b pb-5" style={{ borderColor: A }}>
           <div className="flex items-start gap-3">
-            {b.headerImg ? <img src={b.headerImg} alt="Logo" className="max-h-16 max-w-48 rounded-md object-contain" /> : <span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>Ó</span>}
+            {b.headerImg ? <img src={b.headerImg} alt="Logo" className="max-h-16 max-w-48 rounded-md object-contain" /> : <span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>G</span>}
             {preview
               ? <div className="text-sm [&_p]:text-xs [&_p]:text-muted-foreground [&_strong]:text-base [&_strong]:font-bold" dangerouslySetInnerHTML={{ __html: b.headerHtml ?? '' }} />
               : <Editable html={b.headerHtml ?? ''} onChange={h => update(b.id, { headerHtml: h })} className="text-sm [&_p]:text-xs [&_p]:text-muted-foreground [&_strong]:text-base [&_strong]:font-bold" placeholder="Nome da empresa e dados de contato" />}
@@ -188,7 +188,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
           <div className="text-right"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{editQuote?.id ?? nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div>
         </div>;
       case 'logo':
-        return <div className="flex items-start justify-between gap-4 border-b pb-5"><div className="flex gap-3"><span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>Ó</span><div><strong>Órbita Studio Criativo</strong><p className="text-xs text-muted-foreground">Design · Tecnologia · Estratégia<br />comercial@orbita.example · (11) 4000-1234</p></div></div><div className="text-right"><small className="text-[11px] tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{editQuote?.id ?? nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div></div>;
+        return <div className="flex items-start justify-between gap-4 border-b pb-5"><div className="flex gap-3"><span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>G</span><div><strong>Geo Studio</strong><p className="text-xs text-muted-foreground">Geoprocessamento · Projetos · Estratégia<br />contato@geostudio.example · (11) 4000-1234</p></div></div><div className="text-right"><small className="text-[11px] tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{editQuote?.id ?? nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div></div>;
       case 'title':
         return <div><small className="text-[11px] font-bold tracking-widest" style={{ color: A }}>PROPOSTA COMERCIAL</small><Editable html={b.html ?? ''} onChange={h => update(b.id, { html: h })} className="[&_h2]:text-2xl [&_h2]:font-bold [&_p]:text-sm [&_p]:text-muted-foreground" placeholder="Título da proposta" /></div>;
       case 'number':
@@ -218,7 +218,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
       case 'signature':
         return <div>{head('ASSINATURA E ACEITE')}<div className="mt-10 grid grid-cols-2 gap-10 text-center text-xs text-muted-foreground">
           <div className="border-t pt-2">{c?.contact ?? editQuote?.contact} · {client}</div>
-          <div className="border-t pt-2">{owner} · Órbita Studio</div>
+          <div className="border-t pt-2">{owner} · Geo Studio</div>
         </div></div>;
       case 'footer':
         return <div className="border-t pt-4" style={{ borderColor: A }}>
