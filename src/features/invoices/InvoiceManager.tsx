@@ -90,7 +90,7 @@ export function InvoiceManager({ quotes, invoices, setInvoices, initialQuoteId, 
     <div className="filters"><label className="search-input"><Search size={17} /><input placeholder="Buscar nota, cliente ou tipo..." value={search} onChange={e => setSearch(e.target.value)} />{search && <Button variant="ghost" size="icon" title="Limpar busca" onClick={() => setSearch('')}><X /></Button>}</label>
       <select className="invoice-filter" value={quoteFilter} onChange={e => setQuoteFilter(e.target.value)} aria-label="Filtrar por orçamento"><option value="Todos">Todos os orçamentos</option>{quotes.map(q => <option key={q.id} value={q.id}>{q.id} · {q.client}</option>)}</select></div>
     <div className="table-frame"><div className="table-scroll"><table><thead><tr><th>NOTA</th><th>ORÇAMENTO / CLIENTE</th><th>TIPO</th><th>CFOP</th><th>VALOR</th><th>STATUS</th><th /></tr></thead><tbody>
-      {list.map(inv => <tr key={inv.id}><td><span className="quote-id">{inv.id}</span>{inv.number && <small> Nº {inv.number}</small>}</td><td><div><strong>{inv.client}</strong><small>{inv.quoteId}</small></div></td><td>{inv.type}</td><td>{inv.cfop}</td><td className="value-cell">{money(invoiceTotal(inv))}</td><td><span className={`status-badge ${stClass(inv.status)}`}><i />{inv.status}</span></td>
+      {list.map(inv => <tr key={inv.id}><td><span className="quote-id">{inv.id}</span>{inv.number && <small> Nº {inv.number}</small>}</td><td><div><strong>{inv.client}</strong><small>{inv.quoteId}</small></div></td><td>{inv.type}</td><td>{inv.cfop}</td><td className="value-cell">{money(invoiceTotal(inv))}</td><td><div className="invoice-timeline"><TimelineStep label="Solicitada" done={invoiceStatuses.indexOf(inv.status)>=0} current={inv.status==='Solicitada'} /><TimelineLine done={invoiceStatuses.indexOf(inv.status)>=1} /><TimelineStep label="Emissão" done={invoiceStatuses.indexOf(inv.status)>=1} current={inv.status==='Em emissão'} /><TimelineLine done={invoiceStatuses.indexOf(inv.status)>=2} /><TimelineStep label="Emitida" done={invoiceStatuses.indexOf(inv.status)>=2} current={inv.status==='Emitida'} /></div><span className={`status-badge ${stClass(inv.status)}`} style={{marginLeft:8}}><i />{inv.status}</span></td>
         <td className="invoice-row-actions">{(inv.status === 'Solicitada' || inv.status === 'Em emissão') && <Button variant="outline" size="sm" onClick={() => advance(inv)}>{inv.status === 'Solicitada' ? 'Iniciar emissão' : 'Marcar emitida'}</Button>}{inv.status === 'Solicitada' && <Button variant="ghost" size="sm" onClick={() => setDraft(inv)}>Editar</Button>}{inv.status !== 'Cancelada' && <Button variant="ghost" size="sm" onClick={() => { setInvoices(all => all.map(i => i.id === inv.id ? { ...i, status: 'Cancelada' } : i)); notify(`Nota ${inv.id} cancelada.`); }}>Cancelar</Button>}</td></tr>)}
     </tbody></table>{list.length === 0 && <div className="empty-state"><Receipt /><h3>Nenhuma nota encontrada</h3><p>Escolha um orçamento acima para solicitar a primeira nota.</p></div>}</div>
     <div className="table-footer"><span>{invoiceStatuses.map(s => `${s}: ${invoices.filter(i => i.status === s).length}`).join(' · ')}</span></div></div>
@@ -101,4 +101,10 @@ function nextId(invoices: Invoice[]) { return `NF-${String(invoices.length + 1).
 
 function Field({ label, value, onChange, wide }: { label: string; value: string; onChange: (v: string) => void; wide?: boolean }) {
   return <label className={`invoice-field ${wide ? 'wide' : ''}`}><span>{label}</span><input value={value} onChange={e => onChange(e.target.value)} /></label>;
+}
+function TimelineStep({ label, done, current }: { label: string; done: boolean; current: boolean }) {
+  return <div className="timeline-step"><span className={`timeline-dot ${done?'done':''} ${current?'current':''}`} />{current && <span>{label}</span>}</div>;
+}
+function TimelineLine({ done }: { done: boolean }) {
+  return <div className={`timeline-line ${done?'done':''}`} />;
 }
