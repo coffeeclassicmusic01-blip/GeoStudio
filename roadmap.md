@@ -5,3 +5,5 @@
 - [x] PDF da proposta e follow-up com IA.
 - [x] Tela de montagem de orçamento com blocos arrastáveis.
 - [x] Aba de notas fiscais por orçamento.
+- [ ] Integrar formulário, solicitações e controles Georevest aos orçamentos em ambiente de testes.
+- [ ] Verificar preenchimento original, valores, anexos, regras fiscais e vínculo com orçamento.
