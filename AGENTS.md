@@ -11,3 +11,7 @@
 
 - Keep the quote workspace on the index route and share browser-safe quote types, demo data, and filtering in a dedicated feature module so all views use the same records.
 - This is a frontend mockup: keep edits in React session state and clearly treat contacts and quote records as demonstration data; do not introduce backend persistence without a separate request.
+
+- Keep invoice workflow and Georevest validation in `src/features/invoices`; the index owns shared request, option, client and quote session state so navigation never discards submitted requests.
+- Autofill invoice items only from explicitly stored quote items, never legacy generated item fallbacks; this preserves source values without inventing line items or units.
+- Invoice attachments retain bytes in session state and print/export is browser-only; production storage, notifications, identity and permissions require a separate implementation request.

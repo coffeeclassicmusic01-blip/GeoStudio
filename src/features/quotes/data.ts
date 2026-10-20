@@ -16,6 +16,7 @@ export type Partner = {
 export type Client = {
   id: string; name: string; initials: string; contact: string;
   email: string; phone: string; notes: string; color: string;
+  fiscal?: import('@/features/invoices/data').ClientFiscal | undefined;
 };
 
 export const partnerCategories = ['Design', 'Desenvolvimento', 'Marketing', 'Consultoria', 'Gráfica'] as const;
@@ -112,7 +113,7 @@ export function revisionId(baseId: string, revisionNumber: number): string {
   return `${baseId}-R${String(revisionNumber).padStart(2, '0')}`;
 }
 
-export type QuoteItem = { description: string; qty: number; unit: number };
+export type QuoteItem = { description: string; qty: number; unit: number; measure?: string };
 export type Terms = { validity: string; payment: string; delivery: string; warranty: string };
 export const commercialTerms: Terms = { validity: '15 dias corridos', payment: '50% na aprovação e 50% na entrega', delivery: 'Conforme cronograma acordado após aprovação', warranty: '90 dias de suporte para correções' };
 /** Divide o valor do orçamento em itens demonstrativos cuja soma é exatamente o valor total. */
