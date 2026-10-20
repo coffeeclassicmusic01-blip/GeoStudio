@@ -17,7 +17,7 @@ export type Invoice = {
   site: { cep: string; city: string; uf: string; address: string };
   payment: { method: string; condition: string; terms: string; entry: number; count: number; firstDue: string; interval: number; notes: string };
   requirements: string; notes: string; additional: string; attachments: Attachment[];
-  issuance: { number: string; date: string; pdf?: Attachment; xml?: Attachment; noXml: boolean };
+  issuance: { number: string; date: string; pdf?: Attachment | undefined; xml?: Attachment | undefined; noXml: boolean };
   history: Activity[];
 };
 export const defaultMaterials = ['ATO 800', 'ATO 1000', 'ATO 1200', 'HMO 800', 'HMO 1000', 'HMO 1200', 'HMO 1200 UV', 'HMO 1500', 'HMO 1600', 'GEOTÊXTIL', 'GEOFIX', 'ESP 1000', 'ESP 1200', 'ESP 1500'];
@@ -79,7 +79,8 @@ export function validDocument(value: string, person: 'PJ'|'PF') {
 }
 export function validateInvoice(inv: Invoice): string[] {
   const errors:string[]=[];
-  for(const [label,value] of [['Nome do solicitante',inv.requestedBy],['E-mail do solicitante',inv.requesterEmail],['Cliente',inv.fiscal.legalName],['Tipo de nota',inv.type],['Contrato ou proposta',inv.reference],['Responsável pelo frete',inv.freight],['CEP da obra',inv.site.cep],['Cidade da obra',inv.site.city],['UF da obra',inv.site.uf]]) if(!value.trim())errors.push(`Preencha: ${label}.`);
+  const requiredFields: [string, string][] = [['Nome do solicitante',inv.requestedBy],['E-mail do solicitante',inv.requesterEmail],['Cliente',inv.fiscal.legalName],['Tipo de nota',inv.type],['Contrato ou proposta',inv.reference],['Responsável pelo frete',inv.freight],['CEP da obra',inv.site.cep],['Cidade da obra',inv.site.city],['UF da obra',inv.site.uf]];
+  for(const [label,value] of requiredFields) if(!value.trim())errors.push(`Preencha: ${label}.`);
   if(!validDocument(inv.fiscal.cnpj,inv.person))errors.push(`${inv.person==='PF'?'CPF':'CNPJ'} inválido.`);
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.requesterEmail))errors.push('Informe um e-mail válido do solicitante.');
   if(!Number.isFinite(invoiceTotal(inv)) || invoiceTotal(inv)<=0)errors.push('O valor total deve ser maior que zero.');
