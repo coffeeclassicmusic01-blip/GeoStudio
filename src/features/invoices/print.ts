@@ -2,9 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fiscalMoney, installments, invoiceTotal, remittanceReference, type Invoice } from './data';
 export function printInvoice(inv: Invoice, preview = false) {
-  const doc=new jsPDF({format:'a4'});
-  doc.setFontSize(17);doc.text('Solicitação de Nota Fiscal',12,17);
-  doc.setFontSize(9);doc.text(`${inv.id} · ${inv.status}`,12,24);
+  let doc=new jsPDF({format:'a4'});
   const rows: string[][]=[
     ['Origem',`${inv.quoteId || 'Avulsa'} · ${inv.reference}`],['Solicitante',`${inv.requestedBy} · ${inv.requesterEmail}`],
     ['Cliente',`${inv.fiscal.legalName} · ${inv.fiscal.cnpj}`],['Contato',`${inv.contact} · ${inv.email} · ${inv.phone}`],
@@ -20,10 +18,18 @@ export function printInvoice(inv: Invoice, preview = false) {
     ['Emissão',`${inv.issuance.number || '—'} · ${inv.issuance.date || '—'}`],
   ];
   inv.items.forEach((it,i)=>rows.splice(7+i,0,[`Item ${i+1}`,`${it.description} · ${it.qty} ${it.measure} × ${fiscalMoney(it.unit)} = ${fiscalMoney(it.qty*it.unit)}`]));
-  // Fit all content without truncation; oversized requests intentionally scale down to retain a single A4 page.
-  const chars=rows.reduce((s,r)=>s+r.join('').length,0);
-  const font=Math.min(9,Math.max(3,2100/(chars+rows.length*120)*9));
-  autoTable(doc,{startY:30,body:rows,theme:'plain',margin:{left:12,right:12,top:10,bottom:18},styles:{fontSize:font,cellPadding:1.2,overflow:'linebreak'},columnStyles:{0:{cellWidth:36,fontStyle:'bold'},1:{cellWidth:150}}});
+  // Measure real layout and regenerate until every row fits the same A4 page.
+  let font=9;
+  let padding=1.2;
+  for(let attempt=0;attempt<40;attempt++){
+    doc=new jsPDF({format:'a4'});
+    doc.setFontSize(17);doc.text('Solicitação de Nota Fiscal',12,17);
+    doc.setFontSize(9);doc.text(`${inv.id} · ${inv.status}`,12,24);
+    let bottom=30;
+    autoTable(doc,{startY:30,body:rows,theme:'plain',margin:{left:12,right:12,top:30,bottom:23},styles:{fontSize:font,cellPadding:padding,overflow:'linebreak'},columnStyles:{0:{cellWidth:36,fontStyle:'bold'},1:{cellWidth:150}},didDrawCell:data=>{bottom=Math.max(bottom,data.cell.y+data.cell.height);}});
+    if(doc.getNumberOfPages()===1 && bottom<278)break;
+    font*=.85;padding*=.85;
+  }
   doc.setFontSize(7);doc.text('Solicitante: ____________________    Conferência: ____________________',12,285);
   doc.text('Ambiente de testes · Documento de solicitação, não é uma nota fiscal.',12,291);
   if(preview){doc.autoPrint();const url=URL.createObjectURL(doc.output('blob'));window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}else doc.save(`${inv.id}.pdf`);
