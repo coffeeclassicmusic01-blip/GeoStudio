@@ -16,7 +16,7 @@ export type Partner = {
 export type Client = {
   id: string; name: string; initials: string; contact: string;
   email: string; phone: string; notes: string; color: string;
-  fiscal?: import('@/features/invoices/data').ClientFiscal;
+  fiscal?: import('@/features/invoices/data').ClientFiscal | undefined;
 };
 
 export const partnerCategories = ['Design', 'Desenvolvimento', 'Marketing', 'Consultoria', 'Gráfica'] as const;

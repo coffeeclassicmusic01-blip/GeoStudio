@@ -1,12 +1,54 @@
 {
   "scope": "Georevest invoice integration into existing frontend test workspace; no production migration requested",
   "capabilities": [
-    {"capability":"code and invoice workflow","source":"Georevest archive public/app","outcome":"integrate","status":"in_progress","next_action":"Recreate source workflow as React features sharing quote session state"},
-    {"capability":"schema and records","source":"Georevest database","outcome":"excluded_by_user","status":"accepted","next_action":"No historical data or database migration in this test phase"},
-    {"capability":"auth identities and authorization","source":"Georevest login and ADM","outcome":"excluded_by_user","status":"accepted","next_action":"Existing demo administrator only; production permissions require separate request"},
-    {"capability":"attachments","source":"Georevest PDF/XML and request files","outcome":"integrate_session_only","status":"in_progress","next_action":"Attach and read file bytes during session"},
-    {"capability":"email Teams and public lookups","source":"source cloud services and external endpoints","outcome":"deferred_test_scope","status":"pending","next_action":"Report live notifications and public lookups unavailable in session mockup"},
-    {"capability":"public endpoints callbacks webhooks schedules and cutover","source":"Georevest Teams endpoint and installed app","outcome":"not_migrated_test_scope","status":"accepted","next_action":"No replacement of production app or external callers in this test integration"},
-    {"capability":"verification","source":"quote to invoice flow","outcome":"test","status":"in_progress","next_action":"Verify autofill editing submit readback multiple requests and source rules"}
+    {
+      "capability": "code and invoice workflow",
+      "source": "Georevest archive public/app",
+      "outcome": "integrate",
+      "status": "verified",
+      "next_action": "Session flow verified: autofill, edit, submit, readback, attachment, second request, cancellation, issued status, quote backlink and one-page PDF; 19 tests passed"
+    },
+    {
+      "capability": "schema and records",
+      "source": "Georevest database",
+      "outcome": "excluded_by_user",
+      "status": "accepted",
+      "next_action": "No historical data or database migration in this test phase"
+    },
+    {
+      "capability": "auth identities and authorization",
+      "source": "Georevest login and ADM",
+      "outcome": "excluded_by_user",
+      "status": "accepted",
+      "next_action": "Existing demo administrator only; production permissions require separate request"
+    },
+    {
+      "capability": "attachments",
+      "source": "Georevest PDF/XML and request files",
+      "outcome": "integrate_session_only",
+      "status": "verified",
+      "next_action": "Session flow verified: autofill, edit, submit, readback, attachment, second request, cancellation, issued status, quote backlink and one-page PDF; 19 tests passed"
+    },
+    {
+      "capability": "email Teams and public lookups",
+      "source": "source cloud services and external endpoints",
+      "outcome": "deferred_test_scope",
+      "status": "pending",
+      "next_action": "Report live notifications and public lookups unavailable in session mockup"
+    },
+    {
+      "capability": "public endpoints callbacks webhooks schedules and cutover",
+      "source": "Georevest Teams endpoint and installed app",
+      "outcome": "not_migrated_test_scope",
+      "status": "accepted",
+      "next_action": "No replacement of production app or external callers in this test integration"
+    },
+    {
+      "capability": "verification",
+      "source": "quote to invoice flow",
+      "outcome": "test",
+      "status": "verified",
+      "next_action": "Session flow verified: autofill, edit, submit, readback, attachment, second request, cancellation, issued status, quote backlink and one-page PDF; 19 tests passed"
+    }
   ]
 }
