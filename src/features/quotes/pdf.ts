@@ -47,7 +47,7 @@ export async function exportQuotePdf(q: Quote) {
     const h = rows.length * 5;
     ensure(h);
     const x = opts.align === 'right' ? R : opts.align === 'center' ? W / 2 : L;
-    doc.text(rows, x, y, { align: opts.align ?? 'left', ...(opts.align ? {} : { maxWidth: R - L }) });
+    doc.text(rows, x, y, { align: opts.align ?? 'left' });
     y += h + (opts.gap ?? 2);
   };
 
@@ -106,6 +106,6 @@ export async function exportQuotePdf(q: Quote) {
   ensure(24); y = Math.max(y + 18, BOTTOM - 16);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
   doc.text('Atenciosamente,', L, y); doc.text(company.contacts[0]!.phone, R, y, { align: 'right' });
-  doc.text(`${q.owner} · ${company.name}`, L, y + 7); doc.setTextColor(30, 80, 200); doc.text(company.contacts[0]!.email, R, y + 7, { align: 'right' });
+  doc.text(company.contacts[0]!.name, L, y + 7); doc.setTextColor(30, 80, 200); doc.text(company.contacts[0]!.email, R, y + 7, { align: 'right' });
   doc.save(`${q.id}-${q.client.replace(/\W+/g, '-')}.pdf`);
 }
