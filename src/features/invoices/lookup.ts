@@ -67,7 +67,7 @@ export function useLookup<T>(raw: string, size: number, valid: (d: string) => bo
     const timer = setTimeout(() => {
       queriedRef.current.add(d);
       cbRef.current.fetcher(d)
-        .then(result => { console.log('[lookup] result', result); setBusy(false); cbRef.current.onResult(result); })
+        .then(result => { setBusy(false); cbRef.current.onResult(result); })
         .catch((err: unknown) => { setBusy(false); cbRef.current.onError(err instanceof Error ? err.message : 'Não foi possível consultar. Seus dados foram mantidos.'); });
     }, 500);
     return () => clearTimeout(timer);
