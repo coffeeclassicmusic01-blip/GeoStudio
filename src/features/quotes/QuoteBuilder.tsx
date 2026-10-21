@@ -53,7 +53,7 @@ const palette: { group: string; items: { type: BlockType; label: string; hint: s
 const labelOf = (t: BlockType) => palette.flatMap(g => g.items).find(i => i.type === t)?.label ?? t;
 let seq = 0; const uid = () => `b${++seq}`;
 const mk = (type: BlockType, extra: Partial<Block> = {}): Block => ({ id: uid(), type, label: labelOf(type), visible: true, align: 'left', accent: '#0f4c46', spacing: 'normal', showDiscount: true, ...extra });
-const gap = { compact: 'mb-3', normal: 'mb-6', wide: 'mb-10' };
+const gap = { compact: 'mb-3', normal: 'mb-6', wide: 'mb-14' };
 
 function Editable({ html, onChange, className, placeholder, readOnly }: { html: string; onChange: (h: string) => void; className?: string; placeholder?: string; readOnly?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
