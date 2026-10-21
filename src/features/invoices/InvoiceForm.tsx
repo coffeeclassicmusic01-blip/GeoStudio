@@ -18,9 +18,9 @@ export function Attachments({files,onChange,notify,label='Anexos da solicitaçã
  const [busy,setBusy]=useState(false);
  return <div className="billing-attachments"><label className="billing-upload"><Paperclip size={17}/><span>{busy?'Lendo arquivos…':label}</span><input aria-label={label} type="file" accept={accept} multiple={!kind} disabled={busy} onChange={async e=>{const list=Array.from(e.target.files ?? []);setBusy(true);try{const added:Attachment[]=[];for(const file of list){if(kind){const text=await file.slice(0,4096).text();if(kind==='pdf' && !text.startsWith('%PDF-'))throw new Error('O arquivo não é um PDF válido.');if(kind==='xml' && !/^\s*(<\?xml|<[a-zA-Z_:])/.test(text))throw new Error('O arquivo não é um XML válido.');}added.push(await readAttachment(file));}onChange(kind?added:[...files,...added]);}catch(err){notify(err instanceof Error?err.message:'Não foi possível anexar.');}finally{setBusy(false);e.target.value='';}}}/></label><small>Até 25 MB por arquivo</small>{files.map(f=><div className="billing-file" key={f.id}><a href={f.dataUrl} download={f.name}>{f.name} <small>({Math.ceil(f.size/1024)} KB)</small></a><Button type="button" variant="ghost" size="icon" title={`Remover ${f.name}`} onClick={()=>onChange(files.filter(x=>x.id!==f.id))}><Trash2 size={14}/></Button></div>)}</div>;
 }
-type Props={draft:Invoice;setDraft:(i:Invoice)=>void;quotes:Quote[];clients:Client[];types:string[];materials:string[];errors:string[];onSave:()=>void;onBack:()=>void;notify:(m:string)=>void};
+type Props={draft:Invoice;setDraft:(i:Invoice|((prev:Invoice)=>Invoice))=>void;quotes:Quote[];clients:Client[];types:string[];materials:string[];errors:string[];onSave:()=>void;onBack:()=>void;notify:(m:string)=>void};
 export function InvoiceForm({draft:d,setDraft,quotes,clients,types,materials,errors,onSave,onBack,notify}:Props) {
- const set=(patch:Partial<Invoice>)=>setDraft({...d,...patch});
+ const set=(patch:Partial<Invoice>)=>setDraft(prev=>({...prev,...patch}));
  const fiscal=(k:keyof Invoice['fiscal'],value:string)=>set({fiscal:{...d.fiscal,[k]:value}});
  const payment=(patch:Partial<Invoice['payment']>)=>set({payment:{...d.payment,...patch}});
  const site=(k:keyof Invoice['site'],value:string)=>set({site:{...d.site,[k]:value}});
