@@ -7,6 +7,7 @@ export type Quote = {
   items?: QuoteItem[]; terms?: Terms; discount?: number;
   revisionOf?: string; revisionNumber?: number;
   partnerIds?: string[] | undefined;
+  siteAddress?: string | undefined;
 };
 export type Partner = {
   id: string; name: string; initials: string; category: string;
@@ -77,6 +78,8 @@ const colorCycle = ['teal','violet','green','blue','amber','rose','lime'] as con
 export function pickColor(index: number) { return colorCycle[index % colorCycle.length]!; }
 export function pickPartnerColor(index: number) { return partnerColorCycle[index % partnerColorCycle.length]!; }
 export const money = (value: number) => value.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+/** Valor com centavos, usado nos documentos da proposta. */
+export const moneyFull = (value: number) => value.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});
 export const shortDate = (date: string) => date ? `${date.slice(8,10)} out, 2026` : '—';
 export function filterQuotes(quotes: Quote[], search: string, status: string, owner: string, period: string) {
  return quotes.filter(q => `${q.client} ${q.project} ${q.id}`.toLowerCase().includes(search.toLowerCase()) && (status === 'Todos os status' || q.status === status) && (owner === 'Todos os responsáveis' || q.owner === owner) && (period !== 'Últimos 7 dias' || q.date >= '2026-10-04'));
@@ -113,7 +116,7 @@ export function revisionId(baseId: string, revisionNumber: number): string {
   return `${baseId}-R${String(revisionNumber).padStart(2, '0')}`;
 }
 
-export type QuoteItem = { description: string; qty: number; unit: number; measure?: string };
+export type QuoteItem = { description: string; qty: number; unit: number; measure?: string; details?: string | undefined; note?: string | undefined; image?: string | undefined };
 export type Terms = { validity: string; payment: string; delivery: string; warranty: string };
 export const commercialTerms: Terms = { validity: '15 dias corridos', payment: '50% na aprovação e 50% na entrega', delivery: 'Conforme cronograma acordado após aprovação', warranty: '90 dias de suporte para correções' };
 /** Divide o valor do orçamento em itens demonstrativos cuja soma é exatamente o valor total. */
@@ -136,10 +139,10 @@ export const defaultCatalog: QuoteItem[] = [
   { description: 'Suporte e manutenção mensal', qty: 1, unit: 1200 },
 ];
 export const termOptions: Record<keyof Terms, string[]> = {
-  validity: ['15 dias corridos', '30 dias corridos', '7 dias corridos'],
-  payment: ['50% na aprovação e 50% na entrega', 'À vista com 5% de desconto', '3x sem juros no boleto', '30% de entrada + 2 parcelas'],
-  delivery: ['Conforme cronograma acordado após aprovação', '30 dias úteis', '60 dias úteis'],
-  warranty: ['90 dias de suporte para correções', '30 dias de suporte', '6 meses de suporte'],
+  validity: ['10 dias a partir da data de seu envio via e-mail pela Georevest', '15 dias corridos', '30 dias corridos', '7 dias corridos'],
+  payment: ['Entrada de 30% + 03 parcelas', '50% na aprovação e 50% na entrega', 'À vista com 5% de desconto', '3x sem juros no boleto', '30% de entrada + 2 parcelas'],
+  delivery: ['Produção da Manta Engenheirada em fábrica: 20 dias por reservatório, contados a partir da data de medição. Instalação na obra: 01 dia por reservatório (dias úteis, em horário comercial)', 'Conforme cronograma acordado após aprovação', '30 dias úteis', '60 dias úteis'],
+  warranty: ['05 anos, de acordo com as Normas Técnicas da ABNT para impermeabilização', '90 dias de suporte para correções', '30 dias de suporte', '6 meses de suporte'],
 };
 export const termLabels: Record<keyof Terms, string> = { validity: 'Validade', payment: 'Pagamento', delivery: 'Prazo de entrega', warranty: 'Garantia' };
 export function builderTotal(items: QuoteItem[], discountPct: number) {
