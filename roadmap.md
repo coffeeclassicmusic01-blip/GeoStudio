@@ -7,3 +7,4 @@
 - [x] Aba de notas fiscais por orçamento.
 - [x] Integrar formulário, solicitações e controles Georevest aos orçamentos em ambiente de testes.
 - [x] Verificar preenchimento original, valores, anexos, regras fiscais e vínculo com orçamento.
+- [x] Consulta automática de CNPJ (BrasilAPI) e CEP (BrasilAPI/ViaCEP) na solicitação de NF e no cadastro de clientes, sem sobrescrever edições manuais e com bloqueio de CNPJ duplicado.
