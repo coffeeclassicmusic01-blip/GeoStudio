@@ -8,3 +8,4 @@
 - [x] Integrar formulário, solicitações e controles Georevest aos orçamentos em ambiente de testes.
 - [x] Verificar preenchimento original, valores, anexos, regras fiscais e vínculo com orçamento.
 - [x] Consulta automática de CNPJ (BrasilAPI) e CEP (BrasilAPI/ViaCEP) na solicitação de NF e no cadastro de clientes, sem sobrescrever edições manuais e com bloqueio de CNPJ duplicado.
+- [x] Layout dos documentos do editor de orçamentos no modelo da proposta Georevest (papel timbrado, páginas A4, cartões de itens, condições e assinatura) e PDF correspondente.

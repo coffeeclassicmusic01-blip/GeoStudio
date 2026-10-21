@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Bold, ChevronLeft, ChevronRight, Copy, DollarSign, Eye, EyeOff, FileSignature, Hash, Image as ImageIcon, Italic, List, ListOrdered, Minus, Pilcrow, Plus, Redo2, Save, ScrollText, Search, Strikethrough, Table2, Trash2, Type, Underline, Undo2, User, Wrench, Building2, Download, AlignLeft, AlignCenter, AlignRight, AlignJustify, PanelTop, PanelBottom } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Bold, ChevronLeft, ChevronRight, Copy, DollarSign, Eye, EyeOff, FileSignature, Hash, Image as ImageIcon, Italic, List, ListOrdered, Minus, Pilcrow, Plus, Redo2, Save, ScrollText, Search, Strikethrough, Table2, Trash2, Type, Underline, Undo2, User, Wrench, Building2, Download, AlignLeft, AlignCenter, AlignRight, AlignJustify, PanelTop, PanelBottom, Mail, SeparatorHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { builderTotal, commercialTerms, defaultCatalog, money, pickColor, quoteItems, termLabels, termOptions, type Partner, type Quote, type QuoteItem, type Terms } from './data';
-import { exportQuotePdf } from './pdf';
+import { clientFiscal } from '@/features/invoices/data';
+import { builderTotal, defaultCatalog, money, moneyFull, pickColor, quoteItems, termLabels, termOptions, type Client, type Partner, type Quote, type QuoteItem, type Terms } from './data';
+import { company, formatAddress, georevestCatalog, georevestTerms, letterTermLabels, letterTermOrder, longDate, templateHtml, titleLines } from './georevest';
 
-type BlockType = 'header' | 'logo' | 'title' | 'number' | 'client' | 'products' | 'services' | 'financial' | 'terms' | 'text' | 'image' | 'signature' | 'footer';
+type BlockType = 'header' | 'logo' | 'title' | 'number' | 'opening' | 'client' | 'products' | 'services' | 'financial' | 'terms' | 'text' | 'image' | 'signature' | 'footer' | 'pagebreak';
 type Block = {
   id: string; type: BlockType; label: string; visible: boolean;
   align: 'left' | 'center' | 'right' | 'justify';
@@ -18,11 +19,17 @@ type Block = {
   customTerms?: Partial<Record<keyof Terms, string>>;
   useCustomTerms?: Partial<Record<keyof Terms, boolean>>;
   signatureHtml?: string;
+  /** Modelo de exibição: tabela/cartões (itens), tabela/carta (condições), aceite/carta (assinatura). */
+  layout?: 'table' | 'cards' | 'letter' | 'accept';
 };
+type Letterhead = { enabled: boolean; img: string; footer: string; city: string; pageNumbers: boolean };
+const PAGE_W = 794, PAGE_H = 1123;
+const defaultMargins = { top: 28, bottom: 24, left: 76, right: 76 };
 type Drag = { kind: 'block'; type: BlockType } | { kind: 'move'; id: string } | { kind: 'item'; item: QuoteItem; service?: boolean };
 
 const palette: { group: string; items: { type: BlockType; label: string; hint: string; icon: typeof Type }[] }[] = [
   { group: 'Identificação', items: [
+    { type: 'opening', label: 'Abertura da proposta', hint: 'Data, destinatário, nº e endereço da obra', icon: Mail },
     { type: 'header', label: 'Cabeçalho personalizado', hint: 'Logo, cores e dados — com imagem', icon: PanelTop },
     { type: 'logo', label: 'Logotipo', hint: 'Marca e dados da empresa', icon: Building2 },
     { type: 'title', label: 'Título do orçamento', hint: 'Título e descrição', icon: Type },
@@ -40,12 +47,13 @@ const palette: { group: string; items: { type: BlockType; label: string; hint: s
     { type: 'image', label: 'Imagem', hint: 'Foto, esquema ou logotipo', icon: ImageIcon },
     { type: 'signature', label: 'Assinatura e aceite', hint: 'Responsáveis e aprovação', icon: FileSignature },
     { type: 'footer', label: 'Rodapé personalizado', hint: 'Texto, imagem e contato — com imagem', icon: PanelBottom },
+    { type: 'pagebreak', label: 'Quebra de página', hint: 'Começa uma nova folha A4', icon: SeparatorHorizontal },
   ] },
 ];
 const labelOf = (t: BlockType) => palette.flatMap(g => g.items).find(i => i.type === t)?.label ?? t;
 let seq = 0; const uid = () => `b${++seq}`;
 const mk = (type: BlockType, extra: Partial<Block> = {}): Block => ({ id: uid(), type, label: labelOf(type), visible: true, align: 'left', accent: '#0f4c46', spacing: 'normal', showDiscount: true, ...extra });
-const gap = { compact: 'mb-3', normal: 'mb-6', wide: 'mb-10' };
+const gap = { compact: 'mb-3', normal: 'mb-6', wide: 'mb-14' };
 
 function Editable({ html, onChange, className, placeholder, readOnly }: { html: string; onChange: (h: string) => void; className?: string; placeholder?: string; readOnly?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -55,26 +63,41 @@ function Editable({ html, onChange, className, placeholder, readOnly }: { html: 
 
 type MarginKey = 'top' | 'bottom' | 'left' | 'right';
 
-export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, onCreate, onUpdate, onClose, notify }: { quotes: Quote[]; partners: Partner[]; nextId: string; editQuote?: Quote | null; isRevision?: boolean; onCreate: (q: Quote) => void; onUpdate: (q: Quote) => void; onClose: () => void; notify: (t: string) => void }) {
+export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, editQuote, isRevision, onCreate, onUpdate, onClose, notify }: { quotes: Quote[]; partners: Partner[]; clientRecords?: Client[]; nextId: string; editQuote?: Quote | null; isRevision?: boolean; onCreate: (q: Quote) => void; onUpdate: (q: Quote) => void; onClose: () => void; notify: (t: string) => void }) {
   const clients = useMemo(() => Array.from(new Map(quotes.map(q => [q.client, q])).values()), [quotes]);
   const isEditing = !!editQuote;
   const existingItems = editQuote?.items?.length ? editQuote.items : quoteItems(editQuote ?? { value: 0, project: '' } as Quote);
   const [client, setClient] = useState(editQuote?.client ?? clients[0]?.client ?? '');
   const c = clients.find(x => x.client === client);
+  /** Endereço cadastrado do cliente (dados fiscais), usado como sugestão editável para a obra. */
+  const registeredAddress = (name: string) => formatAddress({ ...clientFiscal[name], ...clientRecords.find(r => r.name === name)?.fiscal });
+  const [siteAddress, setSiteAddress] = useState(editQuote?.siteAddress ?? registeredAddress(editQuote?.client ?? clients[0]?.client ?? ''));
   const [project, setProject] = useState(editQuote?.project ?? c?.project ?? 'Nova proposta');
   const [owner, setOwner] = useState(editQuote?.owner ?? c?.owner ?? 'Marina');
   const [followup, setFollowup] = useState(editQuote?.followup ?? '2026-10-13');
-  const [items, setItems] = useState<QuoteItem[]>(isEditing ? existingItems : [defaultCatalog[2]!]);
-  const [services, setServices] = useState<QuoteItem[]>(isEditing ? [] : [defaultCatalog[0]!]);
-  const [terms, setTerms] = useState<Terms>(editQuote?.terms ?? commercialTerms);
+  const [items, setItems] = useState<QuoteItem[]>(isEditing ? existingItems : [{ ...georevestCatalog[0]! }]);
+  const [services, setServices] = useState<QuoteItem[]>([]);
+  const [terms, setTerms] = useState<Terms>(editQuote?.terms ?? georevestTerms);
   const [discount, setDiscount] = useState(editQuote?.discount ?? 0);
   const [selectedPartners, setSelectedPartners] = useState<string[]>(editQuote?.partnerIds ?? []);
   const [blocks, setBlocks] = useState<Block[]>(() => [
-    mk('header', { headerHtml: '<strong>Geo Studio</strong><p>Geoprocessamento · Projetos · Estratégia<br>contato@geostudio.example · (11) 4000-1234</p>' }),
-    mk('title', { html: `<h2>Proposta comercial — ${editQuote?.client ?? c?.client ?? ''}</h2><p>Solução personalizada para ${editQuote?.project ?? c?.project ?? 'o seu projeto'}.</p>` }),
-    mk('client'), mk('products'), mk('services'), mk('financial'), mk('terms'),
-    mk('signature', { signatureHtml: '<p>Assinatura do cliente</p><p>Assinatura do fornecedor</p>' }),
-    mk('footer', { footerHtml: '<p>Documento gerado por Geo Studio — dados demonstrativos.</p>' }),
+    mk('opening', { label: 'Abertura da proposta', spacing: 'wide' }),
+    mk('text', { label: 'Contato Georevest', html: templateHtml.contacts }),
+    mk('pagebreak'),
+    mk('text', { label: 'Título — Clientes atendidos', html: templateHtml.clientsTitle, align: 'center', spacing: 'compact' }),
+    mk('image', { label: 'Clientes atendidos', img: company.clientsShowcase, align: 'center' }),
+    mk('pagebreak'),
+    mk('text', { label: 'Título — Proposta técnica', html: templateHtml.technicalTitle, align: 'center', spacing: 'compact' }),
+    mk('text', { label: 'Proposta técnica', html: templateHtml.technical, align: 'justify' }),
+    mk('pagebreak'),
+    mk('text', { label: 'Obrigações', html: templateHtml.obligations, align: 'justify' }),
+    mk('pagebreak'),
+    mk('text', { label: 'Título — Proposta comercial', html: templateHtml.commercialTitle, align: 'center', spacing: 'compact' }),
+    mk('products', { label: 'Proposta comercial', layout: 'cards', html: templateHtml.commercialIntro }),
+    mk('pagebreak'),
+    mk('terms', { label: 'Condições comerciais', layout: 'letter', spacing: 'wide' }),
+    mk('text', { label: 'Referências bancárias', html: templateHtml.bank, spacing: 'wide' }),
+    mk('signature', { label: 'Assinatura', layout: 'letter', signatureHtml: templateHtml.signLeft, html: templateHtml.signRight }),
   ]);
   const [selected, setSelected] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
@@ -87,16 +110,23 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [preview, setPreview] = useState(false);
-  const [margins, setMargins] = useState({ top: 40, bottom: 40, left: 64, right: 64 });
+  const [exporting, setExporting] = useState(false);
+  const [margins, setMargins] = useState(defaultMargins);
+  const [letter, setLetter] = useState<Letterhead>({ enabled: true, img: company.letterhead, footer: company.footer.join('\n'), city: company.city, pageNumbers: true });
+  const pageRefs = useRef<(HTMLElement | null)[]>([]);
+  const [overflowPages, setOverflowPages] = useState<number[]>([]);
   const [dirty, setDirty] = useState(false);
   const all = [...items, ...services];
   const subtotal = builderTotal(all, 0);
   const total = builderTotal(all, discount);
   const sel = blocks.find(b => b.id === selected);
+  const quoteId = editQuote?.id ?? nextId;
+  const quoteDate = editQuote?.date ?? '2026-10-10';
   const update = (id: string, p: Partial<Block>) => { setBlocks(bs => bs.map(b => b.id === id ? { ...b, ...p } : b)); setDirty(true); };
 
   function selectClient(name: string) {
     setClient(name);
+    setSiteAddress(registeredAddress(name));
     const found = clients.find(x => x.client === name);
     if (found) { setOwner(found.owner); if (!isEditing) setProject(found.project); }
   }
@@ -141,23 +171,55 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
     const f = e.target.files?.[0];
     if (f) update(blockId, { [field]: URL.createObjectURL(f) });
   }
+  /** Lê a imagem como data URL para que ela acompanhe o item no PDF e nas solicitações. */
+  function readImage(e: React.ChangeEvent<HTMLInputElement>, done: (url: string) => void) {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => done(String(r.result)); r.readAsDataURL(f);
+  }
 
   function build(): Quote | null {
     if (!client || !all.length) { notify('Escolha um cliente e adicione ao menos um item.'); return null; }
     return {
-      id: editQuote?.id ?? nextId, client,
+      id: quoteId, client,
       initials: editQuote?.initials ?? client.split(' ').slice(0, 2).map(s => s[0]).join('').toUpperCase(),
       project, value: total, status: editQuote?.status ?? 'Em elaboração', owner,
-      date: editQuote?.date ?? '2026-10-10', followup,
+      date: quoteDate, followup,
       contact: c?.contact ?? editQuote?.contact ?? '', email: c?.email ?? editQuote?.email ?? '', phone: c?.phone ?? editQuote?.phone ?? '',
       notes: editQuote?.notes ?? ['10 out · Orçamento criado no editor.'],
       color: editQuote?.color ?? pickColor(quotes.length), items: all, terms, discount,
       partnerIds: selectedPartners.length ? selectedPartners : undefined,
+      siteAddress: siteAddress.trim() || undefined,
     };
   }
   const save = () => { const qq = build(); if (!qq) return; setDirty(false); if (isEditing) { onUpdate(qq); notify(isRevision ? 'Revisão salva com sucesso.' : 'Orçamento atualizado com sucesso.'); } else { onCreate(qq); } };
-  const pdf = () => { const qq = build(); if (qq) { exportQuotePdf(qq); notify('PDF da proposta gerado.'); } };
-  useEffect(() => { const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); pdf(); } else if (e.key === 'Escape' && !preview) { onClose(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); /* eslint-disable react-hooks/exhaustive-deps */ });
+  /** Exporta exatamente as folhas exibidas no editor (papel timbrado, blocos e rodapé). */
+  async function pdf() {
+    const qq = build(); if (!qq || exporting) return;
+    const was = { preview, zoom };
+    setExporting(true); setSelected(null); setPreview(true); setZoom(100);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 80))));
+    try {
+      const [{ toJpeg }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const els = pageRefs.current.filter((el): el is HTMLElement => !!el);
+      for (const [n, el] of els.entries()) {
+        const w = el.offsetWidth, h = el.offsetHeight;
+        const url = await toJpeg(el, { pixelRatio: 2, quality: 0.92, width: w, height: h, backgroundColor: getComputedStyle(el).backgroundColor, skipFonts: true });
+        if (n) doc.addPage();
+        const scale = Math.min(1, (297 * w) / (210 * h));
+        const iw = 210 * scale, ih = (210 * h / w) * scale;
+        doc.addImage(url, 'JPEG', (210 - iw) / 2, 0, iw, ih);
+      }
+      doc.save(`${qq.id}-${qq.client.replace(/\W+/g, '-')}.pdf`);
+      notify(`PDF da proposta gerado (${els.length} ${els.length === 1 ? 'página' : 'páginas'}).`);
+    } catch { notify('Não foi possível gerar o PDF. Tente novamente.'); }
+    finally { setPreview(was.preview); setZoom(was.zoom); setExporting(false); }
+  }
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } else if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); void pdf(); } else if (e.key === 'Escape' && !preview) { onClose(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); /* eslint-disable react-hooks/exhaustive-deps */ });
+  useEffect(() => {
+    const over = pageRefs.current.map((el, i) => el && el.offsetHeight > el.offsetWidth * PAGE_H / PAGE_W + 2 ? i : -1).filter(i => i >= 0);
+    setOverflowPages(prev => prev.join() === over.join() ? prev : over);
+  });
 
   function table(list: QuoteItem[], set: (l: QuoteItem[]) => void, title: string, service: boolean, accent: string) {
     return <div onDragOver={e => e.preventDefault()} onDrop={e => { const d = read(e); if (d?.kind === 'item') { e.preventDefault(); e.stopPropagation(); setDropAt(null); addItem(d.item, service); } }}>
@@ -169,6 +231,33 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
           <td><input aria-label="Valor unitário" readOnly={preview} type="number" min={0} className="w-24 bg-transparent" value={it.unit} onChange={e => set(list.map((x, j) => j === i ? { ...x, unit: Math.max(0, Number(e.target.value)) } : x))} /></td>
           <td className="pr-2 text-right">{money(it.qty * it.unit)}</td>
           {!preview && <td><Button size="icon" variant="ghost" className="h-7 w-7" title="Remover" onClick={() => set(list.filter((_, j) => j !== i))}><Trash2 size={13} /></Button></td>}</tr>)}</tbody></table>
+      {!preview && <p className="mt-1 text-[11px] text-muted-foreground">Arraste itens da aba Produtos para cá.</p>}
+    </div>;
+  }
+
+  /** Itens no formato da proposta Georevest: imagem à esquerda, descrição, área e valor à direita. */
+  function cards(b: Block, list: QuoteItem[], set: (l: QuoteItem[]) => void, service: boolean) {
+    const patch = (i: number, p: Partial<QuoteItem>) => { set(list.map((x, j) => j === i ? { ...x, ...p } : x)); setDirty(true); };
+    const field = 'w-full rounded border border-dashed border-border bg-transparent px-1';
+    return <div onDragOver={e => e.preventDefault()} onDrop={e => { const d = read(e); if (d?.kind === 'item') { e.preventDefault(); e.stopPropagation(); setDropAt(null); addItem(d.item, service); } }}>
+      <p className="font-bold">Número da proposta: {quoteId}</p>
+      <Editable html={b.html ?? ''} readOnly={preview} onChange={h => update(b.id, { html: h })} placeholder="Descrição geral dos itens (opcional)" />
+      <div className="mt-4">{list.map((it, i) => <div key={i} className={`grid grid-cols-[minmax(0,44%)_1fr] items-center gap-5 py-3 text-left ${i < list.length - 1 ? 'border-b border-foreground/70' : ''}`}>
+        <div className="flex justify-center">{it.image
+          ? <div className="relative"><img src={it.image} alt={titleLines(it.description).join(' ')} className="max-h-36 max-w-full object-contain" />{!preview && <Button variant="secondary" size="sm" className="absolute right-0 top-0 h-6 px-2 text-[10px]" onClick={() => patch(i, { image: undefined })}>Remover</Button>}</div>
+          : preview ? null : <label className="grid h-28 w-full cursor-pointer place-items-center rounded-md border border-dashed text-xs text-muted-foreground"><span className="text-center"><ImageIcon className="mx-auto mb-1" size={18} />Adicionar imagem</span><input type="file" accept="image/*" className="hidden" onChange={e => readImage(e, url => patch(i, { image: url }))} /></label>}</div>
+        <div className="space-y-0.5">
+          {preview ? titleLines(it.description).map((l, k) => <p key={k} className="mb-0">{l}</p>)
+            : <input aria-label="Descrição do item" title="Use ' · ' para quebrar em linhas" className={field} value={it.description} onChange={e => patch(i, { description: e.target.value })} />}
+          {preview ? it.details && <p className="mb-0 pt-3">{it.details}</p>
+            : <input aria-label="Detalhes do item" placeholder="Detalhes (ex.: área, medidas)" className={`${field} mt-3`} value={it.details ?? ''} onChange={e => patch(i, { details: e.target.value || undefined })} />}
+          <p className="mb-0 font-bold">{preview ? `Valor: ${moneyFull(it.unit)}.` : <>Valor: <input aria-label="Valor unitário" type="number" min={0} step="0.01" className={`${field} inline w-32 font-bold`} value={it.unit} onChange={e => patch(i, { unit: Math.max(0, Number(e.target.value)) })} /></>}</p>
+          {preview ? it.qty !== 1 && <p className="mb-0">Quantidade: {it.qty}{it.measure ? ` ${it.measure}` : ''} · Total: {moneyFull(it.qty * it.unit)}</p>
+            : <p className="mb-0 text-xs text-muted-foreground">Quantidade: <input aria-label="Quantidade" type="number" min={1} className={`${field} inline w-16`} value={it.qty} onChange={e => patch(i, { qty: Math.max(1, Number(e.target.value)) })} /> · Total {moneyFull(it.qty * it.unit)}</p>}
+          {preview ? it.note && <p className="mb-0 pt-1 text-xs">{it.note}</p>
+            : <div className="flex items-center gap-1 pt-1"><input aria-label="Observação do item" placeholder="Observação (ex.: valor por reservatório)" className={`${field} text-xs`} value={it.note ?? ''} onChange={e => patch(i, { note: e.target.value || undefined })} /><Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" title="Remover item" onClick={() => { set(list.filter((_, j) => j !== i)); setDirty(true); }}><Trash2 size={13} /></Button></div>}
+        </div>
+      </div>)}</div>
       {!preview && <p className="mt-1 text-[11px] text-muted-foreground">Arraste itens da aba Produtos para cá.</p>}
     </div>;
   }
@@ -185,40 +274,58 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
               ? <div className="text-sm [&_p]:text-xs [&_p]:text-muted-foreground [&_strong]:text-base [&_strong]:font-bold" dangerouslySetInnerHTML={{ __html: b.headerHtml ?? '' }} />
               : <Editable html={b.headerHtml ?? ''} onChange={h => update(b.id, { headerHtml: h })} className="text-sm [&_p]:text-xs [&_p]:text-muted-foreground [&_strong]:text-base [&_strong]:font-bold" placeholder="Nome da empresa e dados de contato" />}
           </div>
-          <div className="text-right"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{editQuote?.id ?? nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div>
+          <div className="text-right"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{quoteId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div>
         </div>;
       case 'logo':
-        return <div className="flex items-start justify-between gap-4 border-b pb-5"><div className="flex gap-3"><span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>G</span><div><strong>Geo Studio</strong><p className="text-xs text-muted-foreground">Geoprocessamento · Projetos · Estratégia<br />contato@geostudio.example · (11) 4000-1234</p></div></div><div className="text-right"><small className="text-[11px] tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{editQuote?.id ?? nextId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div></div>;
+        return <div className="flex items-start justify-between gap-4 border-b pb-5"><div className="flex gap-3"><span className="grid h-11 w-11 place-items-center rounded-md text-lg font-bold text-primary-foreground" style={{ background: A }}>G</span><div><strong>{company.name}</strong><p className="text-xs text-muted-foreground">{company.footer.join(' · ')}</p></div></div><div className="text-right"><small className="text-[11px] tracking-widest text-muted-foreground">ORÇAMENTO COMERCIAL</small><div className="text-xl font-bold" style={{ color: A }}>{quoteId}</div><small className="text-xs text-muted-foreground">10 out 2026 · Versão 01</small></div></div>;
       case 'title':
         return <div><small className="text-[11px] font-bold tracking-widest" style={{ color: A }}>PROPOSTA COMERCIAL</small><Editable html={b.html ?? ''} onChange={h => update(b.id, { html: h })} className="[&_h2]:text-2xl [&_h2]:font-bold [&_p]:text-sm [&_p]:text-muted-foreground" placeholder="Título da proposta" /></div>;
       case 'number':
-        return <div className="grid grid-cols-3 gap-3 text-sm">{[['Número', editQuote?.id ?? nextId], ['Emissão', '10 out 2026'], ['Validade', terms.validity]].map(([k, v]) => <div key={k}><small className="text-muted-foreground">{k}</small><p className="font-medium">{v}</p></div>)}</div>;
+        return <div className="grid grid-cols-3 gap-3 text-sm">{[['Número', quoteId], ['Emissão', '10 out 2026'], ['Validade', terms.validity]].map(([k, v]) => <div key={k}><small className="text-muted-foreground">{k}</small><p className="font-medium">{v}</p></div>)}</div>;
+      case 'opening':
+        return <div className="text-left">
+          <p className="mb-4 text-right">{letter.city}, {longDate(quoteDate)}</p>
+          <p className="font-bold">Ao {client || '—'}</p>
+          <p className="font-bold">N° DA PROPOSTA: {quoteId}</p>
+          <p>Contato: {c?.contact ?? editQuote?.contact ?? '—'}</p>
+          <p>Telefone: {c?.phone ?? editQuote?.phone ?? '—'}</p>
+          <p className="flex flex-wrap gap-x-1">Endereço da obra:{preview ? <span>{siteAddress || '—'}</span> : <input aria-label="Endereço da obra" className="min-w-0 flex-1 rounded border border-dashed border-border bg-transparent px-1" placeholder="Endereço da obra (não cadastrado)" value={siteAddress} onChange={e => { setSiteAddress(e.target.value); setDirty(true); }} />}</p>
+        </div>;
+      case 'pagebreak':
+        return preview ? null : <div className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-muted-foreground"><span className="flex-1 border-t border-dashed" />QUEBRA DE PÁGINA<span className="flex-1 border-t border-dashed" /></div>;
       case 'client':
         return <div>{head('DADOS DO CLIENTE', 'VINCULADO AO CADASTRO')}<div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">{[['Razão social', client], ['Projeto', project], ['Contato', c?.contact ?? editQuote?.contact], ['E-mail', c?.email ?? editQuote?.email], ['Telefone', c?.phone ?? editQuote?.phone], ['Responsável', owner]].map(([k, v]) => <div key={k}><small className="text-xs text-muted-foreground">{k}</small><p className="font-medium">{v || '—'}</p></div>)}</div></div>;
-      case 'products': return table(items, setItems, 'Produtos', false, A);
-      case 'services': return table(services, setServices, 'Serviços', true, A);
+      case 'products': return b.layout === 'cards' ? cards(b, items, setItems, false) : table(items, setItems, 'Produtos', false, A);
+      case 'services': return b.layout === 'cards' ? cards(b, services, setServices, true) : table(services, setServices, 'Serviços', true, A);
       case 'financial':
         return <div>{head('RESUMO FINANCEIRO')}<div className="ml-auto max-w-xs space-y-1 text-sm">
           <div className="flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></div>
           {b.showDiscount !== false && <div className="flex items-center justify-between"><span>Desconto (%)</span>{preview ? <span>{discount}%</span> : <input aria-label="Desconto" type="number" min={0} max={100} className="w-16 rounded border bg-background px-1 text-right" value={discount} onChange={e => setDiscount(Number(e.target.value))} />}</div>}
           <div className="flex justify-between border-t pt-2 text-base font-bold" style={{ color: A }}><span>Total</span><span>{money(total)}</span></div>
         </div></div>;
-      case 'terms':
-        return <div>{head('CONDIÇÕES COMERCIAIS')}<dl className="grid grid-cols-[150px_1fr] gap-y-1.5 text-sm">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => {
-          const useCustom = b.useCustomTerms?.[k] === true;
-          const customVal = b.customTerms?.[k] ?? '';
-          return <div key={k} className="contents"><dt className="text-muted-foreground">{termLabels[k]}</dt><dd>{preview ? (useCustom ? customVal : terms[k]) : useCustom
-            ? <input aria-label={termLabels[k]} className="w-full rounded border bg-background px-2 py-0.5" value={customVal} onChange={e => update(b.id, { customTerms: { ...b.customTerms, [k]: e.target.value } })} placeholder="Digite seu texto personalizado" />
-            : <select aria-label={termLabels[k]} className="w-full bg-transparent" value={terms[k]} onChange={e => setTerms({ ...terms, [k]: e.target.value })}>{Array.from(new Set([terms[k], ...termOptions[k]])).map(o => <option key={o}>{o}</option>)}</select>}</dd></div>;
-        })}</dl></div>;
+      case 'terms': {
+        const value = (k: keyof Terms) => b.useCustomTerms?.[k] === true ? (b.customTerms?.[k] ?? '') : terms[k];
+        const control = (k: keyof Terms, label: string) => b.useCustomTerms?.[k] === true
+          ? <input aria-label={label} className="w-full rounded border bg-background px-2 py-0.5" value={b.customTerms?.[k] ?? ''} onChange={e => update(b.id, { customTerms: { ...b.customTerms, [k]: e.target.value } })} placeholder="Digite seu texto personalizado" />
+          : <select aria-label={label} className="w-full bg-transparent" value={terms[k]} onChange={e => { setTerms({ ...terms, [k]: e.target.value }); setDirty(true); }}>{Array.from(new Set([terms[k], ...termOptions[k]])).map(o => <option key={o}>{o}</option>)}</select>;
+        if (b.layout === 'letter') return <div className="space-y-3">{letterTermOrder.map(k => {
+          const v = value(k).trim();
+          return <p key={k} className="mb-0">{letterTermLabels[k]}: {preview ? (/[.!?)]$/.test(v) ? v : `${v}.`) : <span className="mt-1 block rounded border border-dashed border-border px-1">{control(k, letterTermLabels[k])}</span>}</p>;
+        })}</div>;
+        return <div>{head('CONDIÇÕES COMERCIAIS')}<dl className="grid grid-cols-[150px_1fr] gap-y-1.5 text-sm">{(Object.keys(termLabels) as (keyof Terms)[]).map(k => <div key={k} className="contents"><dt className="text-muted-foreground">{termLabels[k]}</dt><dd>{preview ? value(k) : control(k, termLabels[k])}</dd></div>)}</dl></div>;
+      }
       case 'text':
-        return <Editable html={b.html ?? ''} onChange={h => update(b.id, { html: h })} className="text-sm [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" placeholder="Escreva aqui…" />;
+        return <Editable html={b.html ?? ''} readOnly={preview} onChange={h => update(b.id, { html: h })} className="[&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" placeholder="Escreva aqui…" />;
       case 'image':
-        return b.img ? <img src={b.img} alt="Imagem do orçamento" className="max-h-72 rounded-md" style={{ display: 'inline-block' }} /> : <label className="grid h-32 cursor-pointer place-items-center rounded-md border border-dashed text-sm text-muted-foreground"><span><ImageIcon className="mx-auto mb-1" />Clique para escolher uma imagem</span><input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload('img', b.id, e)} /></label>;
+        return b.img ? <img src={b.img} alt="Imagem do orçamento" className="max-h-[640px] max-w-full rounded-md" style={{ display: 'inline-block' }} /> : <label className="grid h-32 cursor-pointer place-items-center rounded-md border border-dashed text-sm text-muted-foreground"><span><ImageIcon className="mx-auto mb-1" />Clique para escolher uma imagem</span><input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload('img', b.id, e)} /></label>;
       case 'signature':
+        if (b.layout === 'letter') return <div className="mt-24 flex justify-between gap-6 text-left [&_p]:mb-2">
+          <Editable html={b.signatureHtml ?? ''} readOnly={preview} onChange={h => update(b.id, { signatureHtml: h })} placeholder="Atenciosamente, nome" />
+          <Editable html={b.html ?? ''} readOnly={preview} onChange={h => update(b.id, { html: h })} className="text-right" placeholder="Telefone e e-mail" />
+        </div>;
         return <div>{head('ASSINATURA E ACEITE')}<div className="mt-10 grid grid-cols-2 gap-10 text-center text-xs text-muted-foreground">
           <div className="border-t pt-2">{c?.contact ?? editQuote?.contact} · {client}</div>
-          <div className="border-t pt-2">{owner} · Geo Studio</div>
+          <div className="border-t pt-2">{owner} · {company.name}</div>
         </div></div>;
       case 'footer':
         return <div className="border-t pt-4" style={{ borderColor: A }}>
@@ -236,6 +343,11 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
 
   const filteredPalette = palette.map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q.toLowerCase())) })).filter(g => g.items.length);
   const visibleBlocks = blocks.filter(b => !preview || b.visible);
+  /** Divide os blocos em folhas A4 nas quebras de página (índices globais preservados para arrastar). */
+  const allPages: { b: Block; i: number }[][] = [[]];
+  visibleBlocks.forEach((b, i) => { allPages[allPages.length - 1]!.push({ b, i }); if (b.type === 'pagebreak') allPages.push([]); });
+  const pages = preview ? allPages.filter((pg, n) => n === 0 || pg.some(x => x.b.type !== 'pagebreak')) : allPages;
+  pageRefs.current.length = pages.length;
   const menu = (label: string, entries: [string, () => void][]) => <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 font-normal">{label}</Button></DropdownMenuTrigger><DropdownMenuContent align="start">{entries.map(([l, f], i) => l === '-' ? <DropdownMenuSeparator key={i} /> : <DropdownMenuItem key={l} onSelect={f}>{l}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>;
   const tb = (title: string, icon: ReactNode, cmd: () => void) => <Button variant="ghost" size="icon" className="h-8 w-8" title={title} onMouseDown={e => { e.preventDefault(); cmd(); }}>{icon}</Button>;
   const docStyle = { paddingTop: margins.top, paddingBottom: margins.bottom, paddingLeft: margins.left, paddingRight: margins.right } as React.CSSProperties;
@@ -256,7 +368,7 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
         <Button variant="outline" size="sm" onClick={onClose}><ArrowLeft />Voltar</Button>
         <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? <EyeOff /> : <Eye />}{preview ? 'Editar' : 'Visualizar'}</Button>
         <Button variant="outline" size="sm" onClick={save}><Save />{isEditing ? 'Salvar alterações' : 'Salvar'}</Button>
-        <Button size="sm" onClick={pdf}><Download />Exportar PDF</Button>
+        <Button size="sm" disabled={exporting} onClick={() => void pdf()}><Download />{exporting ? 'Gerando…' : 'Exportar PDF'}</Button>
       </div>
     </header>
     <nav className="flex flex-wrap gap-0.5 border-b px-2 text-sm">
@@ -280,7 +392,10 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
               </div>)}</div>)}</>}
           {tab === 'Clientes' && clients.map(x => <button key={x.client} onClick={() => { selectClient(x.client); notify(`Dados de ${x.client} vinculados ao documento.`); }} className={`mb-1 w-full rounded-md border p-2 text-left text-sm ${x.client === client ? 'border-primary bg-accent' : ''}`}><strong>{x.client}</strong><p className="text-xs text-muted-foreground">{x.contact} · {x.email}</p></button>)}
           {tab === 'Parceiros' && <><p className="mb-3 text-[11px] text-muted-foreground">Selecione os parceiros que participam desta proposta.</p>{partners.map(p => <label key={p.id} className={`mb-1 flex cursor-pointer items-center gap-3 rounded-md border p-2 text-sm ${selectedPartners.includes(p.id) ? 'border-primary bg-accent' : ''}`}><input type="checkbox" className="h-4 w-4" checked={selectedPartners.includes(p.id)} onChange={e => { setSelectedPartners(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id)); }} /><span className="grid h-8 w-8 place-items-center rounded-md bg-accent text-xs font-bold text-accent-foreground">{p.initials}</span><div className="min-w-0 flex-1"><strong className="block truncate">{p.name}</strong><small className="text-muted-foreground">{p.category}</small></div></label>)}</>}
-          {tab === 'Produtos' && <>{[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
+          {tab === 'Produtos' && <>
+            <div className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">MANTA ENGENHEIRADA — ARRASTE PARA A PROPOSTA</small>
+              {georevestCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it })} onDoubleClick={() => addItem(it, false)} className="mt-1 flex cursor-grab items-center gap-2 rounded-md border p-2 text-xs hover:border-primary">{it.image && <img src={it.image} alt="" className="h-9 w-12 shrink-0 object-contain" />}<span className="min-w-0 flex-1">{it.description}<small className="block text-muted-foreground">{it.details}</small></span><strong>{moneyFull(it.unit)}</strong></div>)}</div>
+            {[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
             {defaultCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it, service: !!s })} onDoubleClick={() => addItem(it, !!s)} className="mt-1 flex cursor-grab items-center justify-between gap-2 rounded-md border p-2 text-xs hover:border-primary"><span>{it.description}</span><strong>{money(it.unit)}</strong></div>)}</div>)}</>}
         </div>
       </aside>}
@@ -297,34 +412,43 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
           <div className="ml-auto flex items-center gap-1 text-xs">{tb('Diminuir zoom', <Minus size={14} />, () => setZoom(z => Math.max(50, z - 10)))}<span className="w-10 text-center">{zoom}%</span>{tb('Aumentar zoom', <Plus size={14} />, () => setZoom(z => Math.min(150, z + 10)))}</div>
         </div>}
         <div className="min-h-0 flex-1 overflow-auto bg-muted p-4 sm:p-8" onClick={() => setSelected(null)}>
-          <div className="mx-auto mb-2 flex max-w-[794px] justify-between text-[11px] text-muted-foreground"><span>DOCUMENTO · A4</span><span>{zoom}%</span></div>
-          <div className="mx-auto origin-top" style={{ width: 794, maxWidth: '100%', zoom: zoom / 100 }}>
-            <article className="relative min-h-[1123px] bg-card shadow-lg" onDragOver={e => { e.preventDefault(); }} onDragLeave={() => setDropAt(null)} onDrop={onDocDrop} style={docStyle}>
-              {!preview && <div className="pointer-events-none absolute inset-0">
-                <div className="pointer-events-auto absolute left-0 top-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.top }} onPointerDown={e => startMarginDrag('top', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute left-0 bottom-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.bottom }} onPointerDown={e => startMarginDrag('bottom', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute left-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.left }} onPointerDown={e => startMarginDrag('left', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute right-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.right }} onPointerDown={e => startMarginDrag('right', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
-              </div>}
-              {visibleBlocks.map((b, i) => <div key={b.id}>
-                {dropAt === i && <div className="mb-2 h-1 rounded bg-primary" />}
-                <div draggable={!preview} onDragStart={start({ kind: 'move', id: b.id })}
-                  onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDropAt(e.clientY < r.top + r.height / 2 ? i : i + 1); }}
-                  onClick={e => { e.stopPropagation(); if (!preview) setSelected(b.id); }}
-                  className={`group relative rounded-md ${gap[b.spacing]} ${preview ? '' : 'p-3 ring-1'} ${selected === b.id ? 'ring-2 ring-primary' : preview ? '' : 'ring-transparent hover:ring-border'} ${!b.visible ? 'opacity-40' : ''}`}
-                  style={{ textAlign: b.align }}>
-                  {selected === b.id && <div className="absolute -top-4 right-2 z-10 flex rounded-md border bg-card shadow-sm">
-                    {tb('Mover para cima', <ArrowUp size={13} />, () => i > 0 && move(b.id, i - 1))}{tb('Mover para baixo', <ArrowDown size={13} />, () => move(b.id, i + 2))}
-                    {tb('Duplicar', <Copy size={13} />, () => setBlocks(bs => [...bs.slice(0, i + 1), { ...b, id: uid() }, ...bs.slice(i + 1)]))}
-                    {tb(b.visible ? 'Ocultar' : 'Mostrar', b.visible ? <EyeOff size={13} /> : <Eye size={13} />, () => update(b.id, { visible: !b.visible }))}
-                    {tb('Excluir', <Trash2 size={13} />, () => { setBlocks(bs => bs.filter(x => x.id !== b.id)); setSelected(null); })}
+          <div className="mx-auto mb-2 flex max-w-[794px] justify-between text-[11px] text-muted-foreground"><span>DOCUMENTO · A4 · {pages.length} {pages.length === 1 ? 'PÁGINA' : 'PÁGINAS'}</span><span>{exporting ? 'Gerando PDF…' : `${zoom}%`}</span></div>
+          <div className="mx-auto origin-top space-y-6" style={{ width: PAGE_W, maxWidth: '100%', zoom: zoom / 100 }}>
+            {pages.map((page, p) => <div key={p}>
+              {overflowPages.includes(p) && !preview && <p className="mb-1 text-[11px] font-medium text-destructive">A página {p + 1} passou do tamanho A4 — insira uma quebra de página para dividir o conteúdo.</p>}
+              <article ref={el => { pageRefs.current[p] = el; }} className="quote-doc relative flex flex-col shadow-lg" style={{ minHeight: PAGE_H }} onDragOver={e => { e.preventDefault(); }} onDragLeave={() => setDropAt(null)} onDrop={onDocDrop}>
+                {letter.enabled && letter.img && <img src={letter.img} alt={`Papel timbrado ${company.name}`} className="block w-full select-none" draggable={false} />}
+                <div className="relative flex-1" style={docStyle}>
+                  {!preview && p === 0 && <div className="pointer-events-none absolute inset-0">
+                    <div className="pointer-events-auto absolute left-0 top-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.top }} onPointerDown={e => startMarginDrag('top', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
+                    <div className="pointer-events-auto absolute left-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.left }} onPointerDown={e => startMarginDrag('left', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
+                    <div className="pointer-events-auto absolute right-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.right }} onPointerDown={e => startMarginDrag('right', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
                   </div>}
-                  {render(b)}
+                  {page.map(({ b, i }) => <div key={b.id}>
+                    {dropAt === i && <div className="mb-2 h-1 rounded bg-primary" />}
+                    <div draggable={!preview} onDragStart={start({ kind: 'move', id: b.id })}
+                      onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDropAt(e.clientY < r.top + r.height / 2 ? i : i + 1); }}
+                      onClick={e => { e.stopPropagation(); if (!preview) setSelected(b.id); }}
+                      className={`group relative rounded-md ${b.type === 'pagebreak' ? (preview ? '' : 'mt-4') : gap[b.spacing]} ${preview ? '' : 'p-3 ring-1'} ${selected === b.id ? 'ring-2 ring-primary' : preview ? '' : 'ring-transparent hover:ring-border'} ${!b.visible ? 'opacity-40' : ''}`}
+                      style={{ textAlign: b.align }}>
+                      {selected === b.id && <div className="absolute -top-4 right-2 z-10 flex rounded-md border bg-card shadow-sm">
+                        {tb('Mover para cima', <ArrowUp size={13} />, () => i > 0 && move(b.id, i - 1))}{tb('Mover para baixo', <ArrowDown size={13} />, () => move(b.id, i + 2))}
+                        {tb('Duplicar', <Copy size={13} />, () => setBlocks(bs => [...bs.slice(0, i + 1), { ...b, id: uid() }, ...bs.slice(i + 1)]))}
+                        {tb(b.visible ? 'Ocultar' : 'Mostrar', b.visible ? <EyeOff size={13} /> : <Eye size={13} />, () => update(b.id, { visible: !b.visible }))}
+                        {tb('Excluir', <Trash2 size={13} />, () => { setBlocks(bs => bs.filter(x => x.id !== b.id)); setSelected(null); })}
+                      </div>}
+                      {render(b)}
+                    </div>
+                  </div>)}
+                  {p === pages.length - 1 && dropAt === visibleBlocks.length && <div className="h-1 rounded bg-primary" />}
+                  {!preview && p === pages.length - 1 && <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste blocos da lateral esquerda para cá</div>}
                 </div>
-              </div>)}
-              {dropAt === visibleBlocks.length && <div className="h-1 rounded bg-primary" />}
-              {!preview && <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste blocos da lateral esquerda para cá</div>}
-            </article>
+                {letter.enabled && <footer className="quote-doc-footer px-8 pb-5 text-center">
+                  {letter.footer.split('\n').filter(Boolean).map((l, k) => <p key={k} className={/www\.|https?:/.test(l) ? 'underline' : ''}>{l}</p>)}
+                  {letter.pageNumbers && <p>{p + 1}</p>}
+                </footer>}
+              </article>
+            </div>)}
           </div>
         </div>
       </section>
@@ -333,12 +457,21 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
         <div className="mb-4 flex gap-1">{(['Bloco', 'Comentários', 'Documento'] as const).map(t => <Button key={t} size="sm" variant={rightTab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setRightTab(t)}>{t}{t === 'Comentários' && ` ${comments.length}`}</Button>)}</div>
         {rightTab === 'Comentários' ? <div className="space-y-2 text-sm">{comments.map((m, i) => <p key={i} className="rounded-md bg-secondary p-2">{m}</p>)}<form onSubmit={e => { e.preventDefault(); if (comment.trim()) { setComments([...comments, `Marina: ${comment.trim()}`]); setComment(''); } }}><textarea className="w-full rounded-md border bg-background p-2" rows={3} placeholder="Adicionar comentário" value={comment} onChange={e => setComment(e.target.value)} /><Button size="sm" type="submit" className="w-full">Comentar</Button></form></div>
         : rightTab === 'Documento' ? <div className="space-y-4 text-sm">
-            <div><strong className="mb-3 block">Margens do documento</strong><p className="mb-3 text-[11px] text-muted-foreground">Arraste as guias no documento ou ajuste com os controles deslizantes.</p></div>
+            <div className="space-y-3 border-b pb-4">
+              <strong className="block">Papel timbrado</strong>
+              <label className="flex items-center justify-between">Cabeçalho e rodapé em todas as páginas<Switch checked={letter.enabled} onCheckedChange={v => setLetter(l => ({ ...l, enabled: v }))} /></label>
+              {letter.img ? <div className="space-y-1"><img src={letter.img} alt="Cabeçalho atual" className="w-full rounded border" /><div className="flex gap-1"><label className="flex-1 cursor-pointer rounded-md border px-2 py-1 text-center text-xs">Trocar imagem<input type="file" accept="image/*" className="hidden" onChange={e => readImage(e, url => setLetter(l => ({ ...l, img: url })))} /></label><Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setLetter(l => ({ ...l, img: company.letterhead }))}>Padrão</Button></div></div>
+                : <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2 text-xs text-muted-foreground"><ImageIcon size={14} />Enviar imagem do cabeçalho<input type="file" accept="image/*" className="hidden" onChange={e => readImage(e, url => setLetter(l => ({ ...l, img: url })))} /></label>}
+              <label className="block">Texto do rodapé<textarea rows={3} className="mt-1 w-full rounded-md border bg-background p-2 text-xs" value={letter.footer} onChange={e => setLetter(l => ({ ...l, footer: e.target.value }))} /></label>
+              <label className="flex items-center justify-between">Numerar páginas<Switch checked={letter.pageNumbers} onCheckedChange={v => setLetter(l => ({ ...l, pageNumbers: v }))} /></label>
+              <label className="block">Cidade da data<input className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={letter.city} onChange={e => setLetter(l => ({ ...l, city: e.target.value }))} /></label>
+            </div>
+            <div><strong className="mb-3 block">Margens do documento</strong><p className="mb-3 text-[11px] text-muted-foreground">Arraste as guias na primeira página ou ajuste com os controles deslizantes.</p></div>
             <MarginSlider label="Margem superior" value={margins.top} onChange={v => setMargins(m => ({ ...m, top: v }))} />
             <MarginSlider label="Margem inferior" value={margins.bottom} onChange={v => setMargins(m => ({ ...m, bottom: v }))} />
             <MarginSlider label="Margem esquerda" value={margins.left} onChange={v => setMargins(m => ({ ...m, left: v }))} />
             <MarginSlider label="Margem direita" value={margins.right} onChange={v => setMargins(m => ({ ...m, right: v }))} />
-            <Button variant="outline" size="sm" className="w-full" onClick={() => setMargins({ top: 40, bottom: 40, left: 64, right: 64 })}>Restaurar margens padrão</Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setMargins(defaultMargins)}>Restaurar margens padrão</Button>
           </div>
         : !sel ? <p className="text-sm text-muted-foreground">Selecione um bloco no documento para editar suas propriedades.</p>
         : <div className="space-y-4 text-sm">
@@ -348,6 +481,9 @@ export function QuoteBuilder({ quotes, partners, nextId, editQuote, isRevision, 
             <div><p className="mb-1">Alinhamento</p><div className="flex gap-1">{alignOptions.map(([v, I]) => <Button key={v} size="icon" variant={sel.align === v ? 'secondary' : 'outline'} className="h-8 w-8" title={v} onClick={() => update(sel.id, { align: v as Block['align'] })}><I size={14} /></Button>)}</div></div>
             <label className="block">Espaçamento inferior<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.spacing} onChange={e => update(sel.id, { spacing: e.target.value as Block['spacing'] })}><option value="compact">Compacto</option><option value="normal">Normal</option><option value="wide">Amplo</option></select></label>
             <label className="flex items-center justify-between">Cor de destaque<input type="color" value={sel.accent} onChange={e => update(sel.id, { accent: e.target.value })} /></label>
+            {(sel.type === 'products' || sel.type === 'services') && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'cards' ? 'cards' : 'table'} onChange={e => update(sel.id, { layout: e.target.value as NonNullable<Block['layout']> })}><option value="cards">Cartões com imagem (proposta Georevest)</option><option value="table">Tabela</option></select></label>}
+            {sel.type === 'terms' && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'letter' ? 'letter' : 'table'} onChange={e => update(sel.id, { layout: e.target.value as NonNullable<Block['layout']> })}><option value="letter">Parágrafos (proposta Georevest)</option><option value="table">Tabela</option></select></label>}
+            {sel.type === 'signature' && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'letter' ? 'letter' : 'accept'} onChange={e => update(sel.id, { layout: e.target.value as NonNullable<Block['layout']>, ...(e.target.value === 'letter' && !sel.signatureHtml?.includes('Atenciosamente') ? { signatureHtml: templateHtml.signLeft, html: templateHtml.signRight } : {}) })}><option value="letter">Atenciosamente (proposta Georevest)</option><option value="accept">Linhas de aceite</option></select></label>}
             {sel.type === 'header' && <div className="border-t pt-3">
               <strong className="mb-2 block text-xs">Imagem do cabeçalho</strong>
               {sel.headerImg
