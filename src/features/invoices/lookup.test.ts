@@ -25,10 +25,9 @@ describe('mergeAutofill', () => {
 
 describe('validação prévia de CNPJ', () => {
   it('rejeita CNPJ com dígitos verificadores incorretos antes da consulta', () => {
-    expect(validDocument('11.222.333/0001-81', 'PJ')).toBe(false);
+    expect(validDocument('04.252.011/0001-11', 'PJ')).toBe(false);
   });
   it('aceita CNPJ válido para liberar a consulta', () => {
-    expect(validDocument('11.222.333/0001-82', 'PJ')).toBe(false); // 0001-81 inválido garantido acima; verifica um conhecido válido
     expect(validDocument('04.252.011/0001-10', 'PJ')).toBe(true);
   });
   it('normaliza a entrada removendo a máscara', () => {

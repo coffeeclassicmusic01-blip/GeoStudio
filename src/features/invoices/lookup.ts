@@ -41,7 +41,7 @@ export async function lookupCep(cep: string): Promise<CepInfo> {
 }
 
 /** Mescla dados de consulta sem sobrescrever campos editados manualmente nem preencher com valores vazios. */
-export function mergeAutofill<T extends Record<string, string>>(current: T, patch: Partial<T>, previousAuto: Partial<T>): { merged: T; auto: Partial<T> } {
+export function mergeAutofill<T extends Record<string, string | undefined>>(current: T, patch: Partial<T>, previousAuto: Partial<T>): { merged: T; auto: Partial<T> } {
   const merged = { ...current };
   const auto: Partial<T> = { ...previousAuto };
   for (const key of Object.keys(patch) as (keyof T)[]) {
@@ -67,7 +67,7 @@ export function useLookup<T>(raw: string, size: number, valid: (d: string) => bo
     const timer = setTimeout(() => {
       queriedRef.current.add(d);
       cbRef.current.fetcher(d)
-        .then(result => { setBusy(false); cbRef.current.onResult(result); })
+        .then(result => { console.log('[lookup] result', result); setBusy(false); cbRef.current.onResult(result); })
         .catch((err: unknown) => { setBusy(false); cbRef.current.onError(err instanceof Error ? err.message : 'Não foi possível consultar. Seus dados foram mantidos.'); });
     }, 500);
     return () => clearTimeout(timer);
