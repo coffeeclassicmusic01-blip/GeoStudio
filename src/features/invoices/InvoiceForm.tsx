@@ -1,8 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, Check, Plus, Trash2, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Client, Quote } from '@/features/quotes/data';
-import { changeInvoiceType, defaultMaterials, draftInvoice, fiscalMoney, freightOptions, installmentCounts, installments, invoiceSubtotal, invoiceTotal, measures, paymentMethods, readAttachment, remittanceReference, type Attachment, type Invoice } from './data';
+import { changeInvoiceType, defaultMaterials, draftInvoice, fiscalMoney, freightOptions, installmentCounts, installments, invoiceSubtotal, invoiceTotal, measures, paymentMethods, readAttachment, remittanceReference, validDocument, type Attachment, type ClientFiscal, type Invoice } from './data';
+import { lookupCep, lookupCnpj, mergeAutofill, useLookup } from './lookup';
+const always=()=>true;
+const isCnpj=(doc:string)=>validDocument(doc,'PJ');
 export function Field({label,value,onChange,required=false,type='text',disabled=false}: {label:string;value:string|number;onChange:(v:string)=>void;required?:boolean;type?:string;disabled?:boolean}) {
  return <label className="billing-field"><span>{label}{required && ' *'}</span><input type={type} step={type==='number'?'0.01':undefined} value={value} disabled={disabled} required={required} onChange={e=>onChange(e.target.value)}/></label>;
 }
@@ -21,7 +24,14 @@ export function InvoiceForm({draft:d,setDraft,quotes,clients,types,materials,err
  const fiscal=(k:keyof Invoice['fiscal'],value:string)=>set({fiscal:{...d.fiscal,[k]:value}});
  const payment=(patch:Partial<Invoice['payment']>)=>set({payment:{...d.payment,...patch}});
  const site=(k:keyof Invoice['site'],value:string)=>set({site:{...d.site,[k]:value}});
- const remittance=d.type==='Simples remessa';const source=quotes.find(q=>q.id===d.quoteId);
+  const remittance=d.type==='Simples remessa';const source=quotes.find(q=>q.id===d.quoteId);
+  const autoRef=useRef<{fiscal:Partial<ClientFiscal>;contact:Partial<Pick<Invoice,'phone'|'email'|'client'>>;site:Partial<Invoice['site']>}>({fiscal:{},contact:{},site:{}});
+  const applyFiscal=(patch:Partial<ClientFiscal>)=>{const {merged,auto}=mergeAutofill(d.fiscal,patch,autoRef.current.fiscal);autoRef.current.fiscal=auto;set({fiscal:merged});};
+  const applyContact=(patch:Partial<Pick<Invoice,'phone'|'email'|'client'>>)=>{const {merged,auto}=mergeAutofill({phone:d.phone,email:d.email,client:d.client},patch,autoRef.current.contact);autoRef.current.contact=auto;set(merged);};
+  const applySite=(patch:Partial<Invoice['site']>)=>{const {merged,auto}=mergeAutofill(d.site,patch,autoRef.current.site);autoRef.current.site=auto;set({site:merged});};
+  const cnpjBusy=useLookup(d.person==='PJ'?d.fiscal.cnpj:'',14,isCnpj,lookupCnpj,info=>{applyFiscal({legalName:info.legalName,address:info.address,number:info.number,complement:info.complement,neighborhood:info.neighborhood,city:info.city,uf:info.uf,cep:info.cep});applyContact({client:info.tradeName||info.legalName,phone:info.phone,email:info.email});notify('Dados da empresa preenchidos a partir do CNPJ. Confira antes de enviar.');},notify);
+  const cepBusy=useLookup(d.fiscal.cep,8,always,lookupCep,info=>{applyFiscal({address:info.address,neighborhood:info.neighborhood,city:info.city,uf:info.uf});notify('Endereço do cliente preenchido a partir do CEP.');},notify);
+  const siteCepBusy=useLookup(d.site.cep,8,always,lookupCep,info=>{applySite({address:info.address,city:info.city,uf:info.uf});notify('Endereço da obra preenchido a partir do CEP.');},notify);
  return <form className="billing-form" onSubmit={e=>{e.preventDefault();onSave();}}>
   <div className="billing-form-heading"><div><Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={15}/>Voltar às solicitações</Button><h2>{d.history.length?'Editar solicitação':'Solicitação de Nota Fiscal'}</h2></div><span className="quote-id">{d.id}</span></div>
   <div className="billing-origin"><div><small>Orçamento de origem</small><strong>{d.quoteId || 'Solicitação avulsa'}</strong>{source && <span>{source.project}</span>}</div><div><small>Valor original</small><strong>{d.sourceValue===null?'—':fiscalMoney(d.sourceValue)}</strong></div><div><small>Valor solicitado</small><strong>{fiscalMoney(invoiceTotal(d))}</strong></div></div>
