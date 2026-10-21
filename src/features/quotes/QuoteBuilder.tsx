@@ -343,6 +343,11 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
 
   const filteredPalette = palette.map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q.toLowerCase())) })).filter(g => g.items.length);
   const visibleBlocks = blocks.filter(b => !preview || b.visible);
+  /** Divide os blocos em folhas A4 nas quebras de página (índices globais preservados para arrastar). */
+  const allPages: { b: Block; i: number }[][] = [[]];
+  visibleBlocks.forEach((b, i) => { allPages[allPages.length - 1]!.push({ b, i }); if (b.type === 'pagebreak') allPages.push([]); });
+  const pages = preview ? allPages.filter((pg, n) => n === 0 || pg.some(x => x.b.type !== 'pagebreak')) : allPages;
+  pageRefs.current.length = pages.length;
   const menu = (label: string, entries: [string, () => void][]) => <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-7 px-2 font-normal">{label}</Button></DropdownMenuTrigger><DropdownMenuContent align="start">{entries.map(([l, f], i) => l === '-' ? <DropdownMenuSeparator key={i} /> : <DropdownMenuItem key={l} onSelect={f}>{l}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>;
   const tb = (title: string, icon: ReactNode, cmd: () => void) => <Button variant="ghost" size="icon" className="h-8 w-8" title={title} onMouseDown={e => { e.preventDefault(); cmd(); }}>{icon}</Button>;
   const docStyle = { paddingTop: margins.top, paddingBottom: margins.bottom, paddingLeft: margins.left, paddingRight: margins.right } as React.CSSProperties;
@@ -363,7 +368,7 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
         <Button variant="outline" size="sm" onClick={onClose}><ArrowLeft />Voltar</Button>
         <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? <EyeOff /> : <Eye />}{preview ? 'Editar' : 'Visualizar'}</Button>
         <Button variant="outline" size="sm" onClick={save}><Save />{isEditing ? 'Salvar alterações' : 'Salvar'}</Button>
-        <Button size="sm" onClick={pdf}><Download />Exportar PDF</Button>
+        <Button size="sm" disabled={exporting} onClick={() => void pdf()}><Download />{exporting ? 'Gerando…' : 'Exportar PDF'}</Button>
       </div>
     </header>
     <nav className="flex flex-wrap gap-0.5 border-b px-2 text-sm">
@@ -387,7 +392,10 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
               </div>)}</div>)}</>}
           {tab === 'Clientes' && clients.map(x => <button key={x.client} onClick={() => { selectClient(x.client); notify(`Dados de ${x.client} vinculados ao documento.`); }} className={`mb-1 w-full rounded-md border p-2 text-left text-sm ${x.client === client ? 'border-primary bg-accent' : ''}`}><strong>{x.client}</strong><p className="text-xs text-muted-foreground">{x.contact} · {x.email}</p></button>)}
           {tab === 'Parceiros' && <><p className="mb-3 text-[11px] text-muted-foreground">Selecione os parceiros que participam desta proposta.</p>{partners.map(p => <label key={p.id} className={`mb-1 flex cursor-pointer items-center gap-3 rounded-md border p-2 text-sm ${selectedPartners.includes(p.id) ? 'border-primary bg-accent' : ''}`}><input type="checkbox" className="h-4 w-4" checked={selectedPartners.includes(p.id)} onChange={e => { setSelectedPartners(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id)); }} /><span className="grid h-8 w-8 place-items-center rounded-md bg-accent text-xs font-bold text-accent-foreground">{p.initials}</span><div className="min-w-0 flex-1"><strong className="block truncate">{p.name}</strong><small className="text-muted-foreground">{p.category}</small></div></label>)}</>}
-          {tab === 'Produtos' && <>{[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
+          {tab === 'Produtos' && <>
+            <div className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">MANTA ENGENHEIRADA — ARRASTE PARA A PROPOSTA</small>
+              {georevestCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it })} onDoubleClick={() => addItem(it, false)} className="mt-1 flex cursor-grab items-center gap-2 rounded-md border p-2 text-xs hover:border-primary">{it.image && <img src={it.image} alt="" className="h-9 w-12 shrink-0 object-contain" />}<span className="min-w-0 flex-1">{it.description}<small className="block text-muted-foreground">{it.details}</small></span><strong>{moneyFull(it.unit)}</strong></div>)}</div>
+            {[['Produtos', false], ['Serviços', true]].map(([t, s]) => <div key={String(t)} className="mb-4"><small className="text-[11px] font-bold tracking-widest text-muted-foreground">{String(t).toUpperCase()} — ARRASTE PARA A TABELA</small>
             {defaultCatalog.map(it => <div key={it.description} draggable onDragStart={start({ kind: 'item', item: it, service: !!s })} onDoubleClick={() => addItem(it, !!s)} className="mt-1 flex cursor-grab items-center justify-between gap-2 rounded-md border p-2 text-xs hover:border-primary"><span>{it.description}</span><strong>{money(it.unit)}</strong></div>)}</div>)}</>}
         </div>
       </aside>}
@@ -404,34 +412,43 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
           <div className="ml-auto flex items-center gap-1 text-xs">{tb('Diminuir zoom', <Minus size={14} />, () => setZoom(z => Math.max(50, z - 10)))}<span className="w-10 text-center">{zoom}%</span>{tb('Aumentar zoom', <Plus size={14} />, () => setZoom(z => Math.min(150, z + 10)))}</div>
         </div>}
         <div className="min-h-0 flex-1 overflow-auto bg-muted p-4 sm:p-8" onClick={() => setSelected(null)}>
-          <div className="mx-auto mb-2 flex max-w-[794px] justify-between text-[11px] text-muted-foreground"><span>DOCUMENTO · A4</span><span>{zoom}%</span></div>
-          <div className="mx-auto origin-top" style={{ width: 794, maxWidth: '100%', zoom: zoom / 100 }}>
-            <article className="relative min-h-[1123px] bg-card shadow-lg" onDragOver={e => { e.preventDefault(); }} onDragLeave={() => setDropAt(null)} onDrop={onDocDrop} style={docStyle}>
-              {!preview && <div className="pointer-events-none absolute inset-0">
-                <div className="pointer-events-auto absolute left-0 top-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.top }} onPointerDown={e => startMarginDrag('top', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute left-0 bottom-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.bottom }} onPointerDown={e => startMarginDrag('bottom', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute left-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.left }} onPointerDown={e => startMarginDrag('left', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
-                <div className="pointer-events-auto absolute right-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.right }} onPointerDown={e => startMarginDrag('right', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
-              </div>}
-              {visibleBlocks.map((b, i) => <div key={b.id}>
-                {dropAt === i && <div className="mb-2 h-1 rounded bg-primary" />}
-                <div draggable={!preview} onDragStart={start({ kind: 'move', id: b.id })}
-                  onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDropAt(e.clientY < r.top + r.height / 2 ? i : i + 1); }}
-                  onClick={e => { e.stopPropagation(); if (!preview) setSelected(b.id); }}
-                  className={`group relative rounded-md ${gap[b.spacing]} ${preview ? '' : 'p-3 ring-1'} ${selected === b.id ? 'ring-2 ring-primary' : preview ? '' : 'ring-transparent hover:ring-border'} ${!b.visible ? 'opacity-40' : ''}`}
-                  style={{ textAlign: b.align }}>
-                  {selected === b.id && <div className="absolute -top-4 right-2 z-10 flex rounded-md border bg-card shadow-sm">
-                    {tb('Mover para cima', <ArrowUp size={13} />, () => i > 0 && move(b.id, i - 1))}{tb('Mover para baixo', <ArrowDown size={13} />, () => move(b.id, i + 2))}
-                    {tb('Duplicar', <Copy size={13} />, () => setBlocks(bs => [...bs.slice(0, i + 1), { ...b, id: uid() }, ...bs.slice(i + 1)]))}
-                    {tb(b.visible ? 'Ocultar' : 'Mostrar', b.visible ? <EyeOff size={13} /> : <Eye size={13} />, () => update(b.id, { visible: !b.visible }))}
-                    {tb('Excluir', <Trash2 size={13} />, () => { setBlocks(bs => bs.filter(x => x.id !== b.id)); setSelected(null); })}
+          <div className="mx-auto mb-2 flex max-w-[794px] justify-between text-[11px] text-muted-foreground"><span>DOCUMENTO · A4 · {pages.length} {pages.length === 1 ? 'PÁGINA' : 'PÁGINAS'}</span><span>{exporting ? 'Gerando PDF…' : `${zoom}%`}</span></div>
+          <div className="mx-auto origin-top space-y-6" style={{ width: PAGE_W, maxWidth: '100%', zoom: zoom / 100 }}>
+            {pages.map((page, p) => <div key={p}>
+              {overflowPages.includes(p) && !preview && <p className="mb-1 text-[11px] font-medium text-destructive">A página {p + 1} passou do tamanho A4 — insira uma quebra de página para dividir o conteúdo.</p>}
+              <article ref={el => { pageRefs.current[p] = el; }} className="quote-doc relative flex flex-col shadow-lg" style={{ minHeight: PAGE_H }} onDragOver={e => { e.preventDefault(); }} onDragLeave={() => setDropAt(null)} onDrop={onDocDrop}>
+                {letter.enabled && letter.img && <img src={letter.img} alt={`Papel timbrado ${company.name}`} className="block w-full select-none" draggable={false} />}
+                <div className="relative flex-1" style={docStyle}>
+                  {!preview && p === 0 && <div className="pointer-events-none absolute inset-0">
+                    <div className="pointer-events-auto absolute left-0 top-0 z-20 flex w-full cursor-ns-resize items-center justify-center" style={{ height: margins.top }} onPointerDown={e => startMarginDrag('top', e)}><div className="h-1 w-16 rounded-full bg-primary/40 hover:bg-primary hover:h-1.5 transition-all" /></div>
+                    <div className="pointer-events-auto absolute left-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.left }} onPointerDown={e => startMarginDrag('left', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
+                    <div className="pointer-events-auto absolute right-0 top-0 z-20 flex h-full cursor-ew-resize items-center justify-center" style={{ width: margins.right }} onPointerDown={e => startMarginDrag('right', e)}><div className="h-16 w-1 rounded-full bg-primary/40 hover:bg-primary hover:w-1.5 transition-all" /></div>
                   </div>}
-                  {render(b)}
+                  {page.map(({ b, i }) => <div key={b.id}>
+                    {dropAt === i && <div className="mb-2 h-1 rounded bg-primary" />}
+                    <div draggable={!preview} onDragStart={start({ kind: 'move', id: b.id })}
+                      onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setDropAt(e.clientY < r.top + r.height / 2 ? i : i + 1); }}
+                      onClick={e => { e.stopPropagation(); if (!preview) setSelected(b.id); }}
+                      className={`group relative rounded-md ${b.type === 'pagebreak' ? (preview ? '' : 'mt-4') : gap[b.spacing]} ${preview ? '' : 'p-3 ring-1'} ${selected === b.id ? 'ring-2 ring-primary' : preview ? '' : 'ring-transparent hover:ring-border'} ${!b.visible ? 'opacity-40' : ''}`}
+                      style={{ textAlign: b.align }}>
+                      {selected === b.id && <div className="absolute -top-4 right-2 z-10 flex rounded-md border bg-card shadow-sm">
+                        {tb('Mover para cima', <ArrowUp size={13} />, () => i > 0 && move(b.id, i - 1))}{tb('Mover para baixo', <ArrowDown size={13} />, () => move(b.id, i + 2))}
+                        {tb('Duplicar', <Copy size={13} />, () => setBlocks(bs => [...bs.slice(0, i + 1), { ...b, id: uid() }, ...bs.slice(i + 1)]))}
+                        {tb(b.visible ? 'Ocultar' : 'Mostrar', b.visible ? <EyeOff size={13} /> : <Eye size={13} />, () => update(b.id, { visible: !b.visible }))}
+                        {tb('Excluir', <Trash2 size={13} />, () => { setBlocks(bs => bs.filter(x => x.id !== b.id)); setSelected(null); })}
+                      </div>}
+                      {render(b)}
+                    </div>
+                  </div>)}
+                  {p === pages.length - 1 && dropAt === visibleBlocks.length && <div className="h-1 rounded bg-primary" />}
+                  {!preview && p === pages.length - 1 && <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste blocos da lateral esquerda para cá</div>}
                 </div>
-              </div>)}
-              {dropAt === visibleBlocks.length && <div className="h-1 rounded bg-primary" />}
-              {!preview && <div className="mt-4 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Arraste blocos da lateral esquerda para cá</div>}
-            </article>
+                {letter.enabled && <footer className="quote-doc-footer px-8 pb-5 text-center">
+                  {letter.footer.split('\n').filter(Boolean).map((l, k) => <p key={k} className={/www\.|https?:/.test(l) ? 'underline' : ''}>{l}</p>)}
+                  {letter.pageNumbers && <p>{p + 1}</p>}
+                </footer>}
+              </article>
+            </div>)}
           </div>
         </div>
       </section>
@@ -440,12 +457,21 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
         <div className="mb-4 flex gap-1">{(['Bloco', 'Comentários', 'Documento'] as const).map(t => <Button key={t} size="sm" variant={rightTab === t ? 'secondary' : 'ghost'} className="h-7" onClick={() => setRightTab(t)}>{t}{t === 'Comentários' && ` ${comments.length}`}</Button>)}</div>
         {rightTab === 'Comentários' ? <div className="space-y-2 text-sm">{comments.map((m, i) => <p key={i} className="rounded-md bg-secondary p-2">{m}</p>)}<form onSubmit={e => { e.preventDefault(); if (comment.trim()) { setComments([...comments, `Marina: ${comment.trim()}`]); setComment(''); } }}><textarea className="w-full rounded-md border bg-background p-2" rows={3} placeholder="Adicionar comentário" value={comment} onChange={e => setComment(e.target.value)} /><Button size="sm" type="submit" className="w-full">Comentar</Button></form></div>
         : rightTab === 'Documento' ? <div className="space-y-4 text-sm">
-            <div><strong className="mb-3 block">Margens do documento</strong><p className="mb-3 text-[11px] text-muted-foreground">Arraste as guias no documento ou ajuste com os controles deslizantes.</p></div>
+            <div className="space-y-3 border-b pb-4">
+              <strong className="block">Papel timbrado</strong>
+              <label className="flex items-center justify-between">Cabeçalho e rodapé em todas as páginas<Switch checked={letter.enabled} onCheckedChange={v => setLetter(l => ({ ...l, enabled: v }))} /></label>
+              {letter.img ? <div className="space-y-1"><img src={letter.img} alt="Cabeçalho atual" className="w-full rounded border" /><div className="flex gap-1"><label className="flex-1 cursor-pointer rounded-md border px-2 py-1 text-center text-xs">Trocar imagem<input type="file" accept="image/*" className="hidden" onChange={e => readImage(e, url => setLetter(l => ({ ...l, img: url })))} /></label><Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setLetter(l => ({ ...l, img: company.letterhead }))}>Padrão</Button></div></div>
+                : <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-2 text-xs text-muted-foreground"><ImageIcon size={14} />Enviar imagem do cabeçalho<input type="file" accept="image/*" className="hidden" onChange={e => readImage(e, url => setLetter(l => ({ ...l, img: url })))} /></label>}
+              <label className="block">Texto do rodapé<textarea rows={3} className="mt-1 w-full rounded-md border bg-background p-2 text-xs" value={letter.footer} onChange={e => setLetter(l => ({ ...l, footer: e.target.value }))} /></label>
+              <label className="flex items-center justify-between">Numerar páginas<Switch checked={letter.pageNumbers} onCheckedChange={v => setLetter(l => ({ ...l, pageNumbers: v }))} /></label>
+              <label className="block">Cidade da data<input className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={letter.city} onChange={e => setLetter(l => ({ ...l, city: e.target.value }))} /></label>
+            </div>
+            <div><strong className="mb-3 block">Margens do documento</strong><p className="mb-3 text-[11px] text-muted-foreground">Arraste as guias na primeira página ou ajuste com os controles deslizantes.</p></div>
             <MarginSlider label="Margem superior" value={margins.top} onChange={v => setMargins(m => ({ ...m, top: v }))} />
             <MarginSlider label="Margem inferior" value={margins.bottom} onChange={v => setMargins(m => ({ ...m, bottom: v }))} />
             <MarginSlider label="Margem esquerda" value={margins.left} onChange={v => setMargins(m => ({ ...m, left: v }))} />
             <MarginSlider label="Margem direita" value={margins.right} onChange={v => setMargins(m => ({ ...m, right: v }))} />
-            <Button variant="outline" size="sm" className="w-full" onClick={() => setMargins({ top: 40, bottom: 40, left: 64, right: 64 })}>Restaurar margens padrão</Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setMargins(defaultMargins)}>Restaurar margens padrão</Button>
           </div>
         : !sel ? <p className="text-sm text-muted-foreground">Selecione um bloco no documento para editar suas propriedades.</p>
         : <div className="space-y-4 text-sm">
@@ -455,6 +481,9 @@ export function QuoteBuilder({ quotes, partners, clientRecords = [], nextId, edi
             <div><p className="mb-1">Alinhamento</p><div className="flex gap-1">{alignOptions.map(([v, I]) => <Button key={v} size="icon" variant={sel.align === v ? 'secondary' : 'outline'} className="h-8 w-8" title={v} onClick={() => update(sel.id, { align: v as Block['align'] })}><I size={14} /></Button>)}</div></div>
             <label className="block">Espaçamento inferior<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.spacing} onChange={e => update(sel.id, { spacing: e.target.value as Block['spacing'] })}><option value="compact">Compacto</option><option value="normal">Normal</option><option value="wide">Amplo</option></select></label>
             <label className="flex items-center justify-between">Cor de destaque<input type="color" value={sel.accent} onChange={e => update(sel.id, { accent: e.target.value })} /></label>
+            {(sel.type === 'products' || sel.type === 'services') && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'cards' ? 'cards' : 'table'} onChange={e => update(sel.id, { layout: e.target.value as Block['layout'] })}><option value="cards">Cartões com imagem (proposta Georevest)</option><option value="table">Tabela</option></select></label>}
+            {sel.type === 'terms' && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'letter' ? 'letter' : 'table'} onChange={e => update(sel.id, { layout: e.target.value as Block['layout'] })}><option value="letter">Parágrafos (proposta Georevest)</option><option value="table">Tabela</option></select></label>}
+            {sel.type === 'signature' && <label className="block">Modelo de exibição<select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" value={sel.layout === 'letter' ? 'letter' : 'accept'} onChange={e => update(sel.id, { layout: e.target.value as Block['layout'], ...(e.target.value === 'letter' && !sel.signatureHtml?.includes('Atenciosamente') ? { signatureHtml: templateHtml.signLeft, html: templateHtml.signRight } : {}) })}><option value="letter">Atenciosamente (proposta Georevest)</option><option value="accept">Linhas de aceite</option></select></label>}
             {sel.type === 'header' && <div className="border-t pt-3">
               <strong className="mb-2 block text-xs">Imagem do cabeçalho</strong>
               {sel.headerImg
