@@ -9,7 +9,8 @@ import { QuoteBuilder } from '@/features/quotes/QuoteBuilder';
 import { InvoiceManager } from '@/features/invoices/InvoiceManager';
 import { defaultMaterials, invoiceTypes, initialInvoices, type Invoice } from '@/features/invoices/data';
 import { FollowupWriter } from '@/features/quotes/FollowupWriter';
-import { filterClients, filterPartners, filterQuotes, initialClients, initialPartners, initialQuotes, money, partnerCategories, pickColor, pickPartnerColor, quoteItems, quotesForClient, quotesForPartner, revisionId, revisionsOf, shortDate, statuses, type Client, type Partner, type Quote, type Status } from '@/features/quotes/data';
+import { ClientForm } from '@/features/quotes/ClientForm';
+import { filterClients, filterPartners, filterQuotes, initialClients, initialPartners, initialQuotes, money, partnerCategories, pickPartnerColor, quoteItems, quotesForClient, quotesForPartner, revisionId, revisionsOf, shortDate, statuses, type Client, type Partner, type Quote, type Status } from '@/features/quotes/data';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export const Route = createFileRoute('/')({
