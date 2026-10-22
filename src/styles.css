@@ -199,3 +199,4 @@
 @media(max-width:850px){.topbar-logo{display:block}.sidebar.is-open .brand-logo{max-width:166px}}
 @media(max-width:620px){.topbar-logo{height:20px}.billing-form-brand img{height:20px}}
 @media(max-width:400px){.topbar-logo{height:17px}}
+@media(max-width:620px){.breadcrumb{min-width:0}.breadcrumb>span,.breadcrumb>svg,.breadcrumb>strong{display:none}.top-actions{flex-shrink:0}}
