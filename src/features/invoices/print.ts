@@ -1,6 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { brand, brandLogoData, preloadBrandLogo } from '@/features/brand';
 import { fiscalMoney, installments, invoiceTotal, remittanceReference, type Invoice } from './data';
+void preloadBrandLogo();
 export function printInvoice(inv: Invoice, preview = false) {
   let doc=new jsPDF({format:'a4'});
   const rows: string[][]=[
@@ -23,8 +25,11 @@ export function printInvoice(inv: Invoice, preview = false) {
   let padding=1.2;
   for(let attempt=0;attempt<40;attempt++){
     doc=new jsPDF({format:'a4'});
-    doc.setFontSize(17);doc.text('Solicitação de Nota Fiscal',12,17);
-    doc.setFontSize(9);doc.text(`${inv.id} · ${inv.status}`,12,24);
+    const logo=brandLogoData();
+    if(logo){const w=40;doc.addImage(logo,'PNG',198-w,9,w,w/brand.ratio);}else{doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text(brand.name,198,15,{align:'right'});doc.setFont('helvetica','normal');}
+    doc.setTextColor(20);doc.setFontSize(17);doc.text('Solicitação de Nota Fiscal',12,17);
+    doc.setFontSize(9);doc.setTextColor(90);doc.text(`${inv.id} · ${inv.status}`,12,24);doc.setTextColor(20);
+    doc.setDrawColor(0,153,220);doc.setLineWidth(0.6);doc.line(12,27,198,27);
     let bottom=30;
     autoTable(doc,{startY:30,body:rows,theme:'plain',margin:{left:12,right:12,top:30,bottom:23},styles:{fontSize:font,cellPadding:padding,overflow:'linebreak'},columnStyles:{0:{cellWidth:36,fontStyle:'bold'},1:{cellWidth:150}},didDrawCell:data=>{bottom=Math.max(bottom,data.cell.y+data.cell.height);}});
     if(doc.getNumberOfPages()===1 && bottom<278)break;
