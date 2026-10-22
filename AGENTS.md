@@ -17,3 +17,4 @@
 - Invoice attachments retain bytes in session state and print/export is browser-only; production storage, notifications, identity and permissions require a separate implementation request.
 - Keep the company proposal template (letterhead, contacts, default texts, sample items) in `src/features/quotes/georevest.ts`; the builder and list PDF read from it so company data changes in one place.
 - The quote builder exports what it renders: pages split at page-break blocks and are captured with html-to-image into jsPDF; list/detail exports use the jsPDF layout in `pdf.ts`, which mirrors the same template.
+- App brand identity (logo pointer, name, aspect ratio, PDF logo preload) lives in `src/features/brand.ts`; UI and browser-generated documents read it so the mark is swapped in one place and never distorted.
