@@ -74,3 +74,108 @@
 .quote-doc-footer{font-family:Calibri,Carlito,Arial,sans-serif;font-size:12px;line-height:1.4;color:var(--paper-foreground)}
 .quote-doc-footer p{margin:0}
 .quote-doc-footer .underline{color:var(--paper-link)}
+
+/* Melhorias de usabilidade no Editor de Orçamentos */
+.page-navigator-dock {
+  position: sticky;
+  bottom: 20px;
+  margin: 0 auto;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 6px 12px;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.16), 0 6px 14px -3px rgba(0, 0, 0, 0.08);
+  max-width: 95vw;
+  overflow-x: auto;
+  backdrop-filter: blur(8px);
+}
+.page-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.page-nav-pill:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.page-nav-pill.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+.page-nav-pill.overflow {
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+.page-nav-pill.active.overflow {
+  background: var(--destructive);
+  color: #fff;
+}
+
+.block-hover-inserter {
+  position: relative;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.block-hover-inserter:hover,
+.block-hover-inserter:focus-within {
+  opacity: 1;
+}
+.block-hover-inserter::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  border-top: 1.5px dashed var(--primary);
+  opacity: 0.6;
+}
+.block-hover-inserter-btn {
+  position: relative;
+  z-index: 10;
+  font-size: 10px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.block-floating-bar {
+  animation: slideIn 0.15s ease-out;
+  box-shadow: 0 6px 18px -2px rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  header, nav, aside, .page-navigator-dock, .block-hover-inserter, .block-floating-bar, .no-print {
+    display: none !important;
+  }
+  .quote-doc {
+    box-shadow: none !important;
+    page-break-after: always;
+  }
+}
