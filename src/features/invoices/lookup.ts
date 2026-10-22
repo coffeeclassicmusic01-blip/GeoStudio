@@ -41,7 +41,7 @@ export async function lookupCep(cep: string): Promise<CepInfo> {
 }
 
 /** Mescla dados de consulta sem sobrescrever campos editados manualmente nem preencher com valores vazios. */
-export function mergeAutofill<T extends Record<string, string>>(current: T, patch: Partial<T>, previousAuto: Partial<T>): { merged: T; auto: Partial<T> } {
+export function mergeAutofill<T extends Record<string, string | undefined>>(current: T, patch: Partial<T>, previousAuto: Partial<T>): { merged: T; auto: Partial<T> } {
   const merged = { ...current };
   const auto: Partial<T> = { ...previousAuto };
   for (const key of Object.keys(patch) as (keyof T)[]) {
