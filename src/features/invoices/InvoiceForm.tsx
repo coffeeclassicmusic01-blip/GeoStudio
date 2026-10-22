@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Plus, Trash2, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Client, Quote } from '@/features/quotes/data';
 import { changeInvoiceType, defaultMaterials, draftInvoice, fiscalMoney, freightOptions, installmentCounts, installments, invoiceSubtotal, invoiceTotal, measures, paymentMethods, readAttachment, remittanceReference, validDocument, type Attachment, type ClientFiscal, type Invoice } from './data';
+import { brand } from '@/features/brand';
 import { lookupCep, lookupCnpj, mergeAutofill, useLookup } from './lookup';
 const always=()=>true;
 const isCnpj=(doc:string)=>validDocument(doc,'PJ');
@@ -33,7 +34,7 @@ export function InvoiceForm({draft:d,setDraft,quotes,clients,types,materials,err
   const cepBusy=useLookup(d.fiscal.cep,8,always,lookupCep,info=>{applyFiscal({address:info.address,neighborhood:info.neighborhood,city:info.city,uf:info.uf});notify('Endereço do cliente preenchido a partir do CEP.');},notify);
   const siteCepBusy=useLookup(d.site.cep,8,always,lookupCep,info=>{applySite({address:info.address,city:info.city,uf:info.uf});notify('Endereço da obra preenchido a partir do CEP.');},notify);
  return <form className="billing-form" onSubmit={e=>{e.preventDefault();onSave();}}>
-  <div className="billing-form-heading"><div><Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={15}/>Voltar às solicitações</Button><h2>{d.history.length?'Editar solicitação':'Solicitação de Nota Fiscal'}</h2></div><span className="quote-id">{d.id}</span></div>
+  <div className="billing-form-heading"><div><Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={15}/>Voltar às solicitações</Button><h2>{d.history.length?'Editar solicitação':'Solicitação de Nota Fiscal'}</h2></div><div className="billing-form-brand"><img src={brand.logo} alt={brand.name} width={1265} height={259}/><span className="quote-id">{d.id}</span></div></div>
   <div className="billing-origin"><div><small>Orçamento de origem</small><strong>{d.quoteId || 'Solicitação avulsa'}</strong>{source && <span>{source.project}</span>}</div><div><small>Valor original</small><strong>{d.sourceValue===null?'—':fiscalMoney(d.sourceValue)}</strong></div><div><small>Valor solicitado</small><strong>{fiscalMoney(invoiceTotal(d))}</strong></div></div>
   <SelectField label="Preencher a partir do orçamento" value={d.quoteId} options={quotes.map(q=>q.id)} onChange={id=>{const q=quotes.find(q=>q.id===id);if(!q)return;if((d.history.length || d.quoteId || d.fiscal.legalName || d.items.length || d.requestedBy || d.value || d.attachments.length) && !window.confirm('Substituir os dados deste formulário pelos dados do orçamento selecionado?'))return;setDraft({...draftInvoice(q,'',d.id,clients.find(c=>c.name===q.client)),history:d.history});}}/>
   {errors.length>0 && <div role="alert" className="billing-errors"><strong>Confira os dados antes de enviar</strong><ul>{errors.map(e=><li key={e}>{e}</li>)}</ul></div>}

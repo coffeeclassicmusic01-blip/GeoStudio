@@ -74,7 +74,7 @@ function QuotesPage(){
  const cardTableOpts=[{label:'Cards',icon:LayoutGrid},{label:'Tabela',icon:FileText},{label:'Kanban',icon:LayoutGrid}];
  return <div className="workspace">
  <aside className={`sidebar ${sidebarOpen?'is-open':''} ${sidebarCollapsed?'collapsed':''}`}>
-  <a href="/" className="brand"><span className="brand-mark">G<span/></span><span>Geo <b>Studio</b></span></a>
+  <a href="/" className="brand" aria-label={`${brand.name} · página inicial`}><img src={brand.logo} alt={brand.name} className="brand-logo" width={1265} height={259}/></a>
   <div className="workspace-switch"><span className="workspace-avatar">G</span><div>Geo Studio<small>Workspace profissional</small></div><ChevronDown size={15}/></div>
   <div className="nav-caption">WORKSPACE</div>
   <nav>{[{label:'Visão geral',icon:LayoutDashboard},{label:'Orçamentos',icon:FileText},{label:'Clientes',icon:Users},{label:'Parceiros',icon:Briefcase},{label:'Notas fiscais',icon:Receipt},{label:'Follow-ups',icon:MessageSquare},{label:'Relatórios',icon:ChartNoAxesCombined}].map(item=><Button key={item.label} variant="ghost" className={`nav-item ${section===item.label?'active':''}`} onClick={()=>{setInvoiceQuote(null);navigate(item.label)}}><item.icon size={19}/><span>{item.label}</span>{item.label==='Orçamentos'&&<span className="nav-count">{quotes.length}</span>}{item.label==='Notas fiscais'&&<span className="nav-count">{invoices.length}</span>}{item.label==='Parceiros'&&<span className="nav-count">{partners.length}</span>}{item.label==='Follow-ups'&&<span className="nav-dot"/>}</Button>)}</nav>
