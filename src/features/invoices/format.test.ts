@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caretAfter, formatCnpj, formatMoneyInput, moneyInput } from './format';
+import { caretAfter, formatCnpj, formatMoneyInput, formatWeight, moneyInput, weightInput } from './format';
 import { installments, invoiceTotal } from './data';
 import { blankInvoice } from './data';
 
@@ -49,5 +49,18 @@ describe('parcelas continuam numéricas', () => {
     const inv = { ...blankInvoice('NF-T'), type: 'Venda avulsa de produto', value: moneyInput('15000').value, payment: { ...blankInvoice('x').payment, condition: 'Parcelado', count: 3, firstDue: '2026-11-30' } };
     expect(invoiceTotal(inv)).toBe(15000);
     expect(installments(inv).map(p => formatMoneyInput(p.value))).toEqual(['R$ 5.000,00', 'R$ 5.000,00', 'R$ 5.000,00']);
+  });
+});
+
+describe('peso em kg', () => {
+  it('ao digitar 150 apresenta 150 kg', () => {
+    expect(formatWeight(weightInput('150'))).toBe('150 kg');
+  });
+  it('aceita apenas números e vírgula decimal', () => {
+    expect(weightInput('12a5,5kg')).toBe('125,5');
+    expect(weightInput('12.')).toBe('12,');
+  });
+  it('peso vazio aparece como —', () => {
+    expect(formatWeight('')).toBe('—');
   });
 });

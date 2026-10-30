@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialQuotes, type Quote } from '@/features/quotes/data';
-import { blankInvoice, changeInvoiceType, draftInvoice, duplicateInvoice, installments, invoiceStatuses, invoiceTotal, maxAttachmentBytes, remittanceReference, validateInvoice, validateStatus, validDocument } from './data';
+import { blankInvoice, changeInvoiceType, draftInvoice, formItems, duplicateInvoice, installments, invoiceStatuses, invoiceTotal, maxAttachmentBytes, remittanceReference, validateInvoice, validateStatus, validDocument } from './data';
 const baseQuote = initialQuotes[0];
 if (!baseQuote) throw new Error('Orçamento demonstrativo necessário para os testes.');
 const quote: Quote={...baseQuote,value:2250,items:[{description:'Manta',qty:2.5,unit:1000,measure:'M²'}],discount:10,terms:{payment:'30% + 2 parcelas',delivery:'30 dias',validity:'15 dias',warranty:'90 dias'}};
@@ -18,4 +18,7 @@ describe('Integração Georevest',()=>{
  it('parcelas preservam centavos e vencimentos',()=>{const inv=blankInvoice('NF-1');inv.value=100;inv.payment={...inv.payment,condition:'Parcelado',count:3,entry:10,firstDue:'2026-10-19',interval:15};expect(installments(inv)).toEqual([{date:'2026-10-19',value:30},{date:'2026-11-03',value:30},{date:'2026-11-18',value:30}]);inv.payment.entry=0;expect(installments(inv).map(p=>p.value)).toEqual([33.34,33.33,33.33]);});
  it('anexos respeitam 25 MB por arquivo',()=>expect(maxAttachmentBytes).toBe(25*1024*1024));
  it('valida dígitos de CPF e CNPJ',()=>{expect(validDocument('529.982.247-25','PF')).toBe(true);expect(validDocument('11.222.333/0001-81','PJ')).toBe(true);expect(validDocument('11.111.111/1111-11','PJ')).toBe(false);});
+ it('exige ao menos um material selecionado',()=>{const inv=draftInvoice(quote,'Venda avulsa de produto','NF-1');expect(validateInvoice(inv)).toContain('Selecione pelo menos um material.');expect(validateInvoice({...inv,materials:['HMO 1000']})).not.toContain('Selecione pelo menos um material.');});
+ it('sem itens, o primeiro item é obrigatório e começa com o valor total',()=>{const inv=draftInvoice({...quote,items:[],value:24500,discount:0},'','NF-1');expect(formItems(inv)).toEqual([{description:'',qty:1,unit:24500,measure:''}]);const problems=validateInvoice(inv);expect(problems).toContain('Item 1: preencha a descrição do item.');expect(problems).toContain('Item 1: preencha a unidade.');});
+ it('aponta qual item está sem descrição',()=>{const inv=draftInvoice(quote,'Venda avulsa de produto','NF-1');inv.items=[...inv.items,{description:' ',qty:1,unit:10,measure:'UN'}];const problems=validateInvoice(inv);expect(problems).toContain('Item 2: preencha a descrição do item.');expect(problems).not.toContain('Item 1: preencha a descrição do item.');});
 });
