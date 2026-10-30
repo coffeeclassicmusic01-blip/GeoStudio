@@ -19,3 +19,4 @@
 - The quote builder exports what it renders: pages split at page-break blocks and are captured with html-to-image into jsPDF; list/detail exports use the jsPDF layout in `pdf.ts`, which mirrors the same template.
 - App brand identity (logo pointer, name, aspect ratio, PDF logo preload) lives in `src/features/brand.ts`; UI and browser-generated documents read it so the mark is swapped in one place and never distorted.
 - pt-BR input masks and money parsing live in `src/features/invoices/format.ts`; money inputs keep numbers in state and only format the displayed text, so totals and installments never parse "R$" strings.
+- Invoice item rows come from `formItems` in `src/features/invoices/data.ts`; the form and `validateInvoice` both use it so the always-visible first item is validated exactly as shown.

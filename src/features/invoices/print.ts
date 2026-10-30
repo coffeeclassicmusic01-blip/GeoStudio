@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { brand, brandLogoData, preloadBrandLogo } from '@/features/brand';
-import { brDate } from './format';
+import { brDate, formatWeight } from './format';
 import { fiscalMoney, installments, invoiceTotal, remittanceReference, type Invoice } from './data';
 void preloadBrandLogo();
 export function printInvoice(inv: Invoice, preview = false) {
@@ -12,7 +12,7 @@ export function printInvoice(inv: Invoice, preview = false) {
     ['Endereço',`${inv.fiscal.address} ${inv.fiscal.number ?? ''} · ${inv.fiscal.city}/${inv.fiscal.uf} · ${inv.fiscal.cep}`],
     ['Inscrições',`IE: ${inv.fiscal.ie || '—'} · IM: ${inv.fiscal.im || '—'}`],['Tipo / CNO ou ART',`${inv.type} · ${inv.cno || '—'}`],
     ['Valor',`${fiscalMoney(invoiceTotal(inv))} · Desconto: ${inv.discount}%${inv.type==='Simples remessa'?` · Referência 65%: ${fiscalMoney(remittanceReference(inv))}`:''}`],
-    ['Materiais',inv.materials.join(', ') || '—'],['Frete / Peso',`${inv.freight} · ${inv.weight || '—'} kg`],
+    ['Materiais',inv.materials.join(', ') || '—'],['Frete / Peso',`${inv.freight} · ${formatWeight(inv.weight)}`],
     ['Obra',`${inv.site.address} · ${inv.site.city}/${inv.site.uf} · ${inv.site.cep}`],
     ['Pagamento',`${inv.payment.method} · ${inv.payment.condition} · ${inv.payment.terms}`],
     ['Parcelas',[...(inv.payment.entry>0 && installments(inv).length ? [`Entrada: ${fiscalMoney(inv.payment.entry)}`] : []),...installments(inv).map((p,i)=>`Parcela ${i+1}: ${fiscalMoney(p.value)} (${brDate(p.date)})`)].join(' / ') || '—'],
