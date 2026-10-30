@@ -10,3 +10,4 @@
 - [x] Consulta automática de CNPJ (BrasilAPI) e CEP (BrasilAPI/ViaCEP) na solicitação de NF e no cadastro de clientes, sem sobrescrever edições manuais e com bloqueio de CNPJ duplicado.
 - [x] Layout dos documentos do editor de orçamentos no modelo da proposta Georevest (papel timbrado, páginas A4, cartões de itens, condições e assinatura) e PDF correspondente.
 - [x] Identidade visual com o logo Geo Studio (menu, barra superior, formulário e impressão da NF, favicon, cores da marca).
+- [x] Máscara de CNPJ, mensagens "CNPJ inválido"/"Empresa não encontrada" e valores em Real (R$) no total, itens, entrada, parcelas, detalhes e impressão.
