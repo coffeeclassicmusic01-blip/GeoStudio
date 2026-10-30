@@ -56,3 +56,20 @@ export function caretAfter(text: string, count: number): number {
 
 /** "2026-11-30" → "30/11/2026"; vazio vira "—". */
 export const brDate = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '—');
+
+/**
+ * Peso em quilogramas: o usuário digita só o número (vírgula para decimais, até 3 casas).
+ * Um ponto digitado no fim vira vírgula decimal; os demais pontos são ignorados.
+ */
+export function weightInput(raw: string): string {
+  let s = raw.replace(/kg/gi, '').trim();
+  if (!s.includes(',') && s.endsWith('.')) s = `${s.slice(0, -1)},`;
+  s = s.replace(/[^\d,]/g, '');
+  const comma = s.indexOf(',');
+  const int = (comma >= 0 ? s.slice(0, comma) : s).replace(/^0+(?=\d)/, '').slice(0, 7);
+  if (comma < 0) return int;
+  return `${int || '0'},${s.slice(comma + 1).replace(/,/g, '').slice(0, 3)}`;
+}
+
+/** "150" → "150 kg"; vazio vira "—". */
+export const formatWeight = (weight: string) => (weight.trim() ? `${weight.trim()} kg` : '—');

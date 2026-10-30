@@ -43,6 +43,8 @@ export function fiscalFor(quote: Quote, client?: Client): ClientFiscal {
   return { ...emptyFiscal(), ...clientFiscal[quote.client], ...client?.fiscal, legalName: client?.fiscal?.legalName || clientFiscal[quote.client]?.legalName || client?.name || quote.client };
 }
 export const invoiceSubtotal = (inv: Pick<Invoice,'items'|'value'>) => inv.items.length ? inv.items.reduce((s,i)=>s+i.qty*i.unit,0) : inv.value;
+/** Linhas exibidas no formulário: sempre há ao menos o primeiro item; sem itens, ele começa com o valor total já informado. */
+export const formItems = (inv: Pick<Invoice,'items'|'value'>): InvoiceItem[] => inv.items.length ? inv.items : [{ description:'', qty:1, unit:inv.value, measure:'' }];
 export const invoiceTotal = (inv: Pick<Invoice,'items'|'value'|'discount'>) => Math.round(invoiceSubtotal(inv)*(1-inv.discount/100)*100)/100;
 export const remittanceReference = (inv: Invoice) => Math.round(invoiceTotal(inv)*65)/100;
 export function invoicedValue(invoices: Invoice[], quoteId: string) { return invoices.filter(i=>i.quoteId===quoteId && i.status!=='Cancelada' && i.type!=='Simples remessa').reduce((s,i)=>s+invoiceTotal(i),0); }
@@ -85,7 +87,14 @@ export function validateInvoice(inv: Invoice): string[] {
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.requesterEmail))errors.push('Informe um e-mail válido do solicitante.');
   if(!Number.isFinite(invoiceTotal(inv)) || invoiceTotal(inv)<=0)errors.push('O valor total deve ser maior que zero.');
   if(inv.discount<0 || inv.discount>100)errors.push('Desconto deve estar entre 0% e 100%.');
-  if(inv.items.some(i=>!i.description.trim() || !i.measure.trim() || !Number.isFinite(i.qty) || i.qty<=0 || !Number.isFinite(i.unit) || i.unit<0))errors.push('Confira descrição, unidade, quantidade e valor dos itens.');
+  if(!inv.materials.length)errors.push('Selecione pelo menos um material.');
+  formItems(inv).forEach((it,i)=>{
+    const n=`Item ${i+1}`;
+    if(!it.description.trim())errors.push(`${n}: preencha a descrição do item.`);
+    if(!Number.isFinite(it.qty) || it.qty<=0)errors.push(`${n}: informe uma quantidade maior que zero.`);
+    if(!it.measure.trim())errors.push(`${n}: preencha a unidade.`);
+    if(!Number.isFinite(it.unit) || it.unit<0)errors.push(`${n}: confira o valor unitário.`);
+  });
   if(inv.type!=='Simples remessa' && (!inv.payment.method || !inv.payment.condition))errors.push('Preencha a forma e a condição de pagamento.');
   if(inv.type!=='Simples remessa' && inv.payment.condition==='Parcelado'){
     if(!inv.payment.firstDue)errors.push('Informe o primeiro vencimento.');
