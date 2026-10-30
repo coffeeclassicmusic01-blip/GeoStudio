@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { brand, brandLogoData, preloadBrandLogo } from '@/features/brand';
+import { brDate } from './format';
 import { fiscalMoney, installments, invoiceTotal, remittanceReference, type Invoice } from './data';
 void preloadBrandLogo();
 export function printInvoice(inv: Invoice, preview = false) {
@@ -14,7 +15,7 @@ export function printInvoice(inv: Invoice, preview = false) {
     ['Materiais',inv.materials.join(', ') || '—'],['Frete / Peso',`${inv.freight} · ${inv.weight || '—'} kg`],
     ['Obra',`${inv.site.address} · ${inv.site.city}/${inv.site.uf} · ${inv.site.cep}`],
     ['Pagamento',`${inv.payment.method} · ${inv.payment.condition} · ${inv.payment.terms}`],
-    ['Parcelas',installments(inv).map((p,i)=>`${i+1}: ${p.date} ${fiscalMoney(p.value)}`).join(' / ') || '—'],
+    ['Parcelas',[...(inv.payment.entry>0 && installments(inv).length ? [`Entrada: ${fiscalMoney(inv.payment.entry)}`] : []),...installments(inv).map((p,i)=>`Parcela ${i+1}: ${fiscalMoney(p.value)} (${brDate(p.date)})`)].join(' / ') || '—'],
     ['Cobrança',inv.payment.notes],['Exigências',inv.requirements],['Observações',inv.notes],['Informações adicionais',inv.additional],
     ['Anexos',[...inv.attachments,inv.issuance.pdf,inv.issuance.xml].filter(x=>x).map(x=>x?.name).join(', ') || '—'],
     ['Emissão',`${inv.issuance.number || '—'} · ${inv.issuance.date || '—'}`],
