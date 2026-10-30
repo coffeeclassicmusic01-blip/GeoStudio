@@ -75,9 +75,9 @@ export function useLookup<T>(raw: string, size: number, valid: (d: string) => bo
     const timer = setTimeout(() => {
       queriedRef.current.add(d);
       cbRef.current.fetcher(d)
-        .then(result => { if (!active) return; setBusy(false); cbRef.current.onResult(result); })
+        .then(result => { if (!active) { queriedRef.current.delete(d); return; } setBusy(false); cbRef.current.onResult(result); })
         .catch((err: unknown) => {
-          if (err instanceof LookupError && err.retry) queriedRef.current.delete(d);
+          if (!active || (err instanceof LookupError && err.retry)) queriedRef.current.delete(d);
           if (!active) return;
           const message = err instanceof Error ? err.message : 'Não foi possível consultar. Seus dados foram mantidos.';
           setBusy(false); setError(message); cbRef.current.onError(message);
